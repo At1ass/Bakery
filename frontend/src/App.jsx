@@ -13,6 +13,7 @@ export default function App() {
   const [orderItems, setOrderItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     if (token) {
@@ -27,8 +28,11 @@ export default function App() {
           setProducts(productsResponse.data);
           setLoading(false);
         })
-        .catch(() => {
+        .catch((error) => {
+          console.error('Failed to initialize:', error);
           setToken('');
+          setError('Failed to load user data. Please log in again.');
+          setTimeout(() => setError(''), 5000);
           setLoading(false);
         });
     } else {
@@ -39,22 +43,40 @@ export default function App() {
   }, [token]);
 
   const handleLogin = (newToken) => {
+    setError('');
     setToken(newToken);
   };
 
   const handleLogout = () => {
     setToken('');
     setOrderItems([]);
+    setError('');
+    setSuccessMessage('');
   };
 
   const handleOrder = async () => {
+    setError('');
+    setSuccessMessage('');
+    
+    if (!orderItems.length) {
+      setError('Please add items to your order');
+      setTimeout(() => setError(''), 5000);
+      return;
+    }
+
     try {
       await createOrder(token, { items: orderItems });
       setOrderItems([]);
-      alert('Order placed successfully!');
+      setSuccessMessage('Order placed successfully!');
+      setTimeout(() => setSuccessMessage(''), 5000);
+      
+      // Refresh products to update availability
+      const productsResponse = await fetchProducts(token);
+      setProducts(productsResponse.data);
     } catch (error) {
       console.error('Failed to place order:', error);
-      setError('Failed to place order');
+      setError(error.response?.data?.detail || 'Failed to place order. Please try again.');
+      setTimeout(() => setError(''), 5000);
     }
   };
 
@@ -78,7 +100,8 @@ export default function App() {
         </div>
       </header>
 
-      {error && <div className="error-message">{error}</div>}
+      {error && <div className="error-message" role="alert">{error}</div>}
+      {successMessage && <div className="success-message" role="status">{successMessage}</div>}
 
       {user?.role === 'seller' ? (
         <SellerDashboard
@@ -90,14 +113,20 @@ export default function App() {
         <div className="user-view">
           <ProductList
             products={products}
-            onSelect={(items) => setOrderItems([...orderItems, ...items])}
+            onSelect={(items) => {
+              setError('');
+              setOrderItems([...orderItems, ...items]);
+            }}
           />
           {orderItems.length > 0 && (
             <OrderForm
               items={orderItems}
               products={products}
               onSubmit={handleOrder}
-              onClear={() => setOrderItems([])}
+              onClear={() => {
+                setError('');
+                setOrderItems([]);
+              }}
             />
           )}
         </div>

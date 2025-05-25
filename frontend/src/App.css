@@ -20,45 +20,43 @@ body {
 }
 
 .container {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
 }
 
 header {
-  background-color: white;
-  padding: 1rem 2rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eee;
 }
 
-header h1 {
-  color: var(--primary-color);
-  font-size: 1.8rem;
+h1 {
   margin: 0;
+  color: #333;
 }
 
 .user-info {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 20px;
 }
 
 .logout-btn {
-  background-color: var(--danger-color);
+  padding: 8px 16px;
+  background-color: #dc3545;
   color: white;
   border: none;
-  padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .logout-btn:hover {
-  background-color: #c0392b;
+  background-color: #c82333;
 }
 
 button {
@@ -79,7 +77,62 @@ input, textarea, select {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 200px;
-  font-size: 1.2rem;
-  color: var(--text-color);
+  height: 100vh;
+  font-size: 1.2em;
+  color: #666;
+}
+
+.error-message {
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 12px 20px;
+  margin: 20px 0;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  animation: slideIn 0.3s ease-out;
+}
+
+.success-message {
+  background-color: #d4edda;
+  color: #155724;
+  padding: 12px 20px;
+  margin: 20px 0;
+  border: 1px solid #c3e6cb;
+  border-radius: 4px;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.user-view {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 30px;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .user-view {
+    grid-template-columns: 1fr;
+  }
+  
+  header {
+    flex-direction: column;
+    text-align: center;
+    gap: 15px;
+  }
+  
+  .user-info {
+    flex-direction: column;
+    gap: 10px;
+  }
 } 

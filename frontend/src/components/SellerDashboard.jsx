@@ -8,9 +8,12 @@ export default function SellerDashboard({ products, token, onProductsChange }) {
     name: '',
     description: '',
     price: '',
-    recipe: []  // Initialize empty recipe array
+    category: '',
+    tags: [],
+    recipe: []
   });
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     fetchOrders(token)
@@ -18,39 +21,60 @@ export default function SellerDashboard({ products, token, onProductsChange }) {
       .catch(error => {
         console.error('Failed to fetch orders:', error);
         setError('Failed to load orders');
+        setTimeout(() => setError(''), 5000); // Clear error after 5 seconds
       });
   }, [token]);
 
   const handleCreateProduct = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
     
     try {
       const productData = {
         name: newProduct.name,
         description: newProduct.description,
         price: parseFloat(newProduct.price),
-        recipe: []  // Send empty recipe array
+        category: newProduct.category || 'Other',
+        tags: newProduct.tags.length ? newProduct.tags : ['General'],
+        recipe: newProduct.recipe || [],
+        is_available: true
       };
 
       const response = await createProduct(token, productData);
       onProductsChange([...products, response.data]);
-      setNewProduct({ name: '', description: '', price: '', recipe: [] });
+      setNewProduct({ 
+        name: '', 
+        description: '', 
+        price: '', 
+        category: '',
+        tags: [],
+        recipe: [] 
+      });
+      setSuccessMessage('Product created successfully!');
+      setTimeout(() => setSuccessMessage(''), 5000); // Clear success message after 5 seconds
     } catch (error) {
       console.error('Failed to create product:', error);
       setError(error.response?.data?.detail || 'Failed to create product');
+      setTimeout(() => setError(''), 5000); // Clear error after 5 seconds
     }
   };
 
   const handleDeleteProduct = async (productId) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     
+    setError('');
+    setSuccessMessage('');
+    
     try {
       await deleteProduct(token, productId);
       onProductsChange(products.filter(p => p.id !== productId));
+      setSuccessMessage('Product deleted successfully!');
+      setTimeout(() => setSuccessMessage(''), 5000); // Clear success message after 5 seconds
     } catch (error) {
       console.error('Failed to delete product:', error);
       setError('Failed to delete product');
+      setTimeout(() => setError(''), 5000); // Clear error after 5 seconds
     }
   };
 
@@ -58,42 +82,62 @@ export default function SellerDashboard({ products, token, onProductsChange }) {
     <div className="seller-dashboard">
       <h2>Seller Dashboard</h2>
       
-      {error && <div className="error-message">{error}</div>}
+      {error && <div className="error-message" role="alert">{error}</div>}
+      {successMessage && <div className="success-message" role="status">{successMessage}</div>}
       
       <section className="product-management">
         <h3>Add New Product</h3>
         <form onSubmit={handleCreateProduct} className="product-form">
           <div className="form-group">
-            <label>Name:</label>
+            <label htmlFor="productName">Name:</label>
             <input
+              id="productName"
               type="text"
               value={newProduct.name}
               onChange={e => setNewProduct({...newProduct, name: e.target.value})}
               required
               placeholder="Product name"
+              minLength="1"
+              maxLength="100"
             />
           </div>
           
           <div className="form-group">
-            <label>Description:</label>
+            <label htmlFor="productDescription">Description:</label>
             <textarea
+              id="productDescription"
               value={newProduct.description}
               onChange={e => setNewProduct({...newProduct, description: e.target.value})}
               required
               placeholder="Product description"
+              minLength="1"
+              maxLength="500"
             />
           </div>
           
           <div className="form-group">
-            <label>Price:</label>
+            <label htmlFor="productPrice">Price:</label>
             <input
+              id="productPrice"
               type="number"
               step="0.01"
-              min="0"
+              min="0.01"
               value={newProduct.price}
               onChange={e => setNewProduct({...newProduct, price: e.target.value})}
               required
               placeholder="0.00"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="productCategory">Category:</label>
+            <input
+              id="productCategory"
+              type="text"
+              value={newProduct.category}
+              onChange={e => setNewProduct({...newProduct, category: e.target.value})}
+              placeholder="Product category"
+              maxLength="50"
             />
           </div>
           
@@ -109,6 +153,7 @@ export default function SellerDashboard({ products, token, onProductsChange }) {
               <tr>
                 <th>Name</th>
                 <th>Description</th>
+                <th>Category</th>
                 <th>Price</th>
                 <th>Actions</th>
               </tr>
@@ -118,7 +163,8 @@ export default function SellerDashboard({ products, token, onProductsChange }) {
                 <tr key={product.id}>
                   <td>{product.name}</td>
                   <td>{product.description}</td>
-                  <td>${product.price.toFixed(2)}</td>
+                  <td>{product.category || 'Other'}</td>
+                  <td>${parseFloat(product.price).toFixed(2)}</td>
                   <td>
                     <button 
                       onClick={() => handleDeleteProduct(product.id)}
@@ -151,7 +197,7 @@ export default function SellerDashboard({ products, token, onProductsChange }) {
                 <tr key={order.id}>
                   <td>{order.id}</td>
                   <td>{order.user_email}</td>
-                  <td>${order.total.toFixed(2)}</td>
+                  <td>${parseFloat(order.total).toFixed(2)}</td>
                   <td>
                     <span className={`status ${order.status}`}>
                       {order.status}
