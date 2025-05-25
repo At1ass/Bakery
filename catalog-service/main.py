@@ -40,13 +40,13 @@ def custom_jsonable_encoder(obj):
 
 async def verify_token(authorization: Optional[str] = Header(None)) -> dict:
     if not authorization:
-        return {'role': None}
+        raise HTTPException(401, 'Authorization required')
     try:
         token = authorization.split(' ')[1]
         payload = jwt.decode(token, SECRET, algorithms=['HS256'])
         return payload
     except:
-        return {'role': None}
+        raise HTTPException(401, 'Invalid token')
 
 @app.get('/products')
 async def list_products():
@@ -104,13 +104,12 @@ async def update_product(product_id: str, product: Product, user: dict = Depends
         {'$set': product_dict}
     )
     
-    if result.matched_count == 0:
+    if result.modified_count == 0:
         raise HTTPException(404, 'Product not found')
     
     # Return the updated product
     updated_product = await db.find_one({'_id': ObjectId(product_id)})
-    updated_product['id'] = str(updated_product['_id'])
-    del updated_product['_id']
+    updated_product['id'] = product_id
     return updated_product
 
 @app.delete('/products/{product_id}')
@@ -118,7 +117,10 @@ async def delete_product(product_id: str, user: dict = Depends(verify_token)):
     if user.get('role') != 'seller':
         raise HTTPException(403, 'Only sellers can delete products')
     
-    result = await db.delete_one({'_id': ObjectId(product_id)})
-    if result.deleted_count == 0:
+    try:
+        result = await db.delete_one({'_id': ObjectId(product_id)})
+        if result.deleted_count == 0:
+            raise HTTPException(404, 'Product not found')
+        return {'message': 'Product deleted successfully'}
+    except:
         raise HTTPException(404, 'Product not found')
-    return {'message': 'Product deleted successfully'}

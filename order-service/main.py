@@ -6,6 +6,7 @@ import os, requests
 from jose import jwt
 from typing import Optional, List
 from bson.objectid import ObjectId
+from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
@@ -39,35 +40,42 @@ async def create_order(order: Order, user: dict = Depends(verify_token)):
     if user.get('role') != 'user':
         raise HTTPException(403, 'Only users can create orders')
 
-    if not order.items:
-        raise HTTPException(400, 'Order must contain at least one item')
-
     total = 0
+    catalog_url = os.getenv('CATALOG_URL', 'http://catalog:8000')
+    
     try:
         for item in order.items:
-            response = requests.get(f"http://catalog:8000/products/{item.product_id}")
-            if response.status_code == 404:
-                raise HTTPException(400, f'Product {item.product_id} not found')
-            elif response.status_code != 200:
-                raise HTTPException(500, 'Error fetching product information')
-            
-            product = response.json()
-            total += product['price'] * item.quantity
-    except requests.RequestException:
-        raise HTTPException(500, 'Error communicating with catalog service')
+            try:
+                response = requests.get(f"{catalog_url}/products/{item.product_id}")
+                if response.status_code == 404:
+                    raise HTTPException(400, f'Product {item.product_id} not found')
+                elif response.status_code != 200:
+                    raise HTTPException(500, 'Error fetching product information')
+                
+                product = response.json()
+                total += float(product['price']) * item.quantity
+            except requests.RequestException as e:
+                raise HTTPException(500, f'Error communicating with catalog service: {str(e)}')
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(500, f'Unexpected error: {str(e)}')
     
     order_data = {
         'user_id': user['sub'],
         'user_email': user['email'],
-        'items': [item.dict() for item in order.items],
+        'items': [{"product_id": item.product_id, "quantity": item.quantity} for item in order.items],
         'total': total,
         'status': 'pending',
         'created_at': order.created_at
     }
 
-    result = await db.insert_one(order_data)
-    order_data['id'] = str(result.inserted_id)
-    return order_data
+    try:
+        result = await db.insert_one(order_data)
+        order_data['id'] = str(result.inserted_id)
+        return JSONResponse(content=order_data)
+    except Exception as e:
+        raise HTTPException(500, f'Error saving order: {str(e)}')
 
 @app.get('/orders')
 async def list_orders(user: dict = Depends(verify_token)):
@@ -80,8 +88,11 @@ async def list_orders(user: dict = Depends(verify_token)):
     else:
         raise HTTPException(403, 'Unauthorized')
     
-    orders = await cursor.to_list(100)
-    for order in orders:
-        order['id'] = str(order['_id'])
-        del order['_id']
-    return orders
+    try:
+        orders = await cursor.to_list(100)
+        for order in orders:
+            order['id'] = str(order['_id'])
+            del order['_id']
+        return JSONResponse(content=orders)
+    except Exception as e:
+        raise HTTPException(500, f'Error retrieving orders: {str(e)}')
