@@ -9,6 +9,13 @@ from bson.objectid import ObjectId
 from fastapi.encoders import jsonable_encoder
 import json
 
+# Custom JSON encoder for MongoDB ObjectId
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        return super().default(obj)
+
 app = FastAPI()
 
 # Add CORS middleware
@@ -26,11 +33,10 @@ client = AsyncIOMotorClient(MONGO_URL)
 db = client.get_database('confectionery').get_collection('products')
 SECRET = os.getenv('SECRET', 'your_jwt_secret')  # Add default secret for development
 
-class JSONEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, ObjectId):
-            return str(o)
-        return super().default(o)
+def custom_jsonable_encoder(obj):
+    if isinstance(obj, ObjectId):
+        return str(obj)
+    return jsonable_encoder(obj)
 
 async def verify_token(authorization: Optional[str] = Header(None)) -> dict:
     if not authorization:
@@ -77,10 +83,9 @@ async def create_product(product: Product, user: dict = Depends(verify_token)):
     result = await db.insert_one(product_dict)
     
     # Return the created product with id
-    created_product = {
-        'id': str(result.inserted_id),
-        **product_dict
-    }
+    created_product = await db.find_one({'_id': result.inserted_id})
+    created_product['id'] = str(created_product['_id'])
+    del created_product['_id']
     return created_product
 
 @app.put('/products/{product_id}')
@@ -94,16 +99,18 @@ async def update_product(product_id: str, product: Product, user: dict = Depends
         product_dict['recipe'] = []
     
     # Update in MongoDB
-    await db.update_one(
+    result = await db.update_one(
         {'_id': ObjectId(product_id)},
         {'$set': product_dict}
     )
     
+    if result.matched_count == 0:
+        raise HTTPException(404, 'Product not found')
+    
     # Return the updated product
-    updated_product = {
-        'id': product_id,
-        **product_dict
-    }
+    updated_product = await db.find_one({'_id': ObjectId(product_id)})
+    updated_product['id'] = str(updated_product['_id'])
+    del updated_product['_id']
     return updated_product
 
 @app.delete('/products/{product_id}')
@@ -111,5 +118,7 @@ async def delete_product(product_id: str, user: dict = Depends(verify_token)):
     if user.get('role') != 'seller':
         raise HTTPException(403, 'Only sellers can delete products')
     
-    await db.delete_one({'_id': ObjectId(product_id)})
+    result = await db.delete_one({'_id': ObjectId(product_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(404, 'Product not found')
     return {'message': 'Product deleted successfully'}
