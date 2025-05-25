@@ -39,6 +39,7 @@
   text-align: center;
   font-size: 0.9rem;
   border: 1px solid #fabdbd;
+  animation: slideIn 0.3s ease-out;
 }
 
 .login-form {
@@ -77,6 +78,13 @@
   background-color: white;
 }
 
+.form-group input:disabled,
+.form-group select:disabled {
+  background-color: #e9ecef;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .role-select {
   cursor: pointer;
   background-color: #f8f9fa;
@@ -94,16 +102,47 @@
   transition: all 0.3s ease;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  position: relative;
+  min-height: 48px;
 }
 
-.submit-btn:hover {
+.submit-btn:not(:disabled):hover {
   background-color: #2980b9;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(41, 128, 185, 0.2);
 }
 
-.submit-btn:active {
+.submit-btn:not(:disabled):active {
   transform: translateY(0);
+}
+
+.submit-btn:disabled {
+  background-color: #95a5a6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.submit-btn.loading {
+  color: transparent;
+}
+
+.loading-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
 }
 
 .toggle-form {
@@ -122,7 +161,62 @@
   padding: 8px 16px;
 }
 
-.toggle-btn:hover {
+.toggle-btn:not(:disabled):hover {
   color: #2980b9;
   text-decoration: none;
+}
+
+.toggle-btn:disabled {
+  color: #95a5a6;
+  cursor: not-allowed;
+}
+
+.password-strength {
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.password-strength.password-weak {
+  background-color: #fee;
+  color: #e74c3c;
+}
+
+.password-strength.password-medium {
+  background-color: #fef5e7;
+  color: #f39c12;
+}
+
+.password-strength.password-strong {
+  background-color: #e8f8f5;
+  color: #27ae60;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-box {
+    padding: 20px;
+  }
+
+  .login-box h2 {
+    font-size: 1.5rem;
+  }
+
+  .form-group input,
+  .form-group select {
+    padding: 10px;
+  }
 } 

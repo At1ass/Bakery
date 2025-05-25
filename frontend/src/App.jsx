@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { login, fetchProducts, createOrder, getCurrentUser } from './api.js';
 import Login from './components/Login.jsx';
 import ProductList from './components/ProductList.jsx';
 import OrderForm from './components/OrderForm.jsx';
 import SellerDashboard from './components/SellerDashboard.jsx';
 import './App.css';
+
+const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
@@ -14,44 +16,94 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [sessionTimeout, setSessionTimeout] = useState(null);
+
+  const resetSession = useCallback(() => {
+    if (sessionTimeout) {
+      clearTimeout(sessionTimeout);
+    }
+    const timeout = setTimeout(() => {
+      handleLogout();
+      setError('Your session has expired. Please log in again.');
+    }, SESSION_TIMEOUT);
+    setSessionTimeout(timeout);
+  }, [sessionTimeout]);
+
+  const handleUserActivity = useCallback(() => {
+    resetSession();
+  }, [resetSession]);
 
   useEffect(() => {
-    if (token) {
-      localStorage.setItem('token', token);
-      // Fetch user data and products
-      Promise.all([
-        getCurrentUser(token),
-        fetchProducts(token)
-      ])
-        .then(([userResponse, productsResponse]) => {
+    // Add event listeners for user activity
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(event => {
+      window.addEventListener(event, handleUserActivity);
+    });
+
+    return () => {
+      events.forEach(event => {
+        window.removeEventListener(event, handleUserActivity);
+      });
+      if (sessionTimeout) {
+        clearTimeout(sessionTimeout);
+      }
+    };
+  }, [handleUserActivity, sessionTimeout]);
+
+  useEffect(() => {
+    const initializeApp = async () => {
+      if (token) {
+        try {
+          localStorage.setItem('token', token);
+          resetSession();
+
+          const [userResponse, productsResponse] = await Promise.all([
+            getCurrentUser(token),
+            fetchProducts(token)
+          ]);
+
           setUser(userResponse.data);
           setProducts(productsResponse.data);
-          setLoading(false);
-        })
-        .catch((error) => {
+        } catch (error) {
           console.error('Failed to initialize:', error);
-          setToken('');
-          setError('Failed to load user data. Please log in again.');
-          setTimeout(() => setError(''), 5000);
+          
+          if (error.response?.status === 401) {
+            setError('Your session has expired. Please log in again.');
+          } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
+            setError('Unable to connect to the server. Please check your connection and try again.');
+          } else {
+            setError('Failed to load user data. Please log in again.');
+          }
+          
+          handleLogout();
+        } finally {
           setLoading(false);
-        });
-    } else {
-      localStorage.removeItem('token');
-      setUser(null);
-      setLoading(false);
-    }
-  }, [token]);
+        }
+      } else {
+        handleLogout();
+        setLoading(false);
+      }
+    };
+
+    initializeApp();
+  }, [token, resetSession]);
 
   const handleLogin = (newToken) => {
     setError('');
     setToken(newToken);
+    resetSession();
   };
 
   const handleLogout = () => {
     setToken('');
+    localStorage.removeItem('token');
+    setUser(null);
     setOrderItems([]);
     setError('');
     setSuccessMessage('');
+    if (sessionTimeout) {
+      clearTimeout(sessionTimeout);
+    }
   };
 
   const handleOrder = async () => {
@@ -73,9 +125,15 @@ export default function App() {
       // Refresh products to update availability
       const productsResponse = await fetchProducts(token);
       setProducts(productsResponse.data);
+      resetSession();
     } catch (error) {
       console.error('Failed to place order:', error);
-      setError(error.response?.data?.detail || 'Failed to place order. Please try again.');
+      if (error.response?.status === 401) {
+        setError('Your session has expired. Please log in again.');
+        handleLogout();
+      } else {
+        setError(error.response?.data?.detail || 'Failed to place order. Please try again.');
+      }
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -108,6 +166,12 @@ export default function App() {
           products={products}
           token={token}
           onProductsChange={setProducts}
+          onError={(error) => {
+            if (error.response?.status === 401) {
+              handleLogout();
+              setError('Your session has expired. Please log in again.');
+            }
+          }}
         />
       ) : (
         <div className="user-view">
