@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, constr, conlist
-from typing import List, Optional
+from pydantic import BaseModel, Field, constr
+from typing import List, Optional, Annotated
 from decimal import Decimal
 
 class Ingredient(BaseModel):
@@ -14,7 +14,12 @@ class Product(BaseModel):
     description: constr(min_length=1, max_length=500) = Field(..., description="Product description")
     price: Decimal = Field(..., gt=0, description="Product price")
     category: constr(min_length=1, max_length=50) = Field(..., description="Product category")
-    tags: conlist(str, min_items=1, max_items=10) = Field(default_factory=list, description="Product tags")
+    tags: List[str] = Field(
+        default_factory=list,
+        description="Product tags",
+        min_length=1,
+        max_length=10
+    )
     image_url: Optional[str] = Field(None, description="URL to product image")
     recipe: List[Ingredient] = Field(default_factory=list, description="List of ingredients in the recipe")
     is_available: bool = Field(default=True, description="Whether the product is available")

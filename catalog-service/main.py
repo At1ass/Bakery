@@ -11,6 +11,11 @@ from fastapi.encoders import jsonable_encoder
 import json
 from decimal import Decimal
 import re
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Catalog Service",
@@ -18,11 +23,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware
+# Simplified CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -30,7 +35,8 @@ app.add_middleware(
 # Connect to MongoDB with explicit database name
 MONGO_URL = os.getenv('MONGO', 'mongodb://mongo:27017/confectionery')
 client = AsyncIOMotorClient(MONGO_URL)
-db = client.get_database('confectionery').get_collection('products')
+db = client.get_database('confectionery')
+products_collection = db.get_collection('products')
 SECRET = os.getenv('SECRET', 'your_jwt_secret')
 
 def parse_object_id(id: str) -> ObjectId:
@@ -52,66 +58,91 @@ async def verify_token(authorization: Optional[str] = Header(None)) -> dict:
     except Exception as e:
         raise HTTPException(401, f'Authorization failed: {str(e)}')
 
-@app.get('/products', response_model=List[Product])
-async def list_products(
-    skip: int = Query(0, ge=0, description="Number of products to skip"),
-    limit: int = Query(10, ge=1, le=100, description="Number of products to return"),
-    search: Optional[str] = Query(None, description="Search in name and description"),
-    category: Optional[str] = Query(None, description="Filter by category"),
-    min_price: Optional[float] = Query(None, ge=0, description="Minimum price"),
-    max_price: Optional[float] = Query(None, gt=0, description="Maximum price"),
-    tags: Optional[List[str]] = Query(None, description="Filter by tags"),
-    available_only: bool = Query(True, description="Show only available products")
-):
-    """
-    List products with pagination and filtering options.
-    """
-    query = {}
-    
-    # Build query filters
-    if search:
-        regex = re.compile(f".*{re.escape(search)}.*", re.IGNORECASE)
-        query["$or"] = [
-            {"name": {"$regex": regex}},
-            {"description": {"$regex": regex}}
-        ]
-    
-    if category:
-        query["category"] = category
-    
-    if min_price is not None or max_price is not None:
-        query["price"] = {}
-        if min_price is not None:
-            query["price"]["$gte"] = min_price
-        if max_price is not None:
-            query["price"]["$lte"] = max_price
-    
-    if tags:
-        query["tags"] = {"$all": tags}
-    
-    if available_only:
-        query["is_available"] = True
+@app.options("/products")
+async def products_options():
+    """Handle OPTIONS preflight request"""
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "http://localhost:3001",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
 
+@app.get('/products')
+async def list_products(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    authorization: Optional[str] = Header(None)
+):
+    """List products with pagination."""
     try:
-        # Get total count for pagination
-        total = await db.count_documents(query)
+        logger.info("Starting products fetch request")
         
-        # Get paginated results
-        cursor = db.find(query).skip(skip).limit(limit)
-        products = await cursor.to_list(length=limit)
+        # Basic query for available products
+        query = {}  # Remove the is_available filter temporarily for testing
         
-        # Transform products
-        for product in products:
-            product['id'] = str(product.pop('_id'))
-        
-        return JSONResponse(content={
-            "total": total,
-            "skip": skip,
-            "limit": limit,
-            "products": products
-        })
+        try:
+            # Test database connection
+            await products_collection.find_one()
+            logger.info("Database connection successful")
+        except Exception as db_err:
+            logger.error(f"Database connection error: {str(db_err)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Database connection error: {str(db_err)}"
+            )
+
+        try:
+            # Get total count
+            total = await products_collection.count_documents(query)
+            logger.info(f"Total products found: {total}")
+
+            if total == 0:
+                logger.info("No products found in database")
+                return JSONResponse(content={
+                    "total": 0,
+                    "products": [],
+                    "page": 1,
+                    "pages": 0
+                })
+
+            # Get paginated results
+            cursor = products_collection.find(query).skip(skip).limit(limit)
+            products = await cursor.to_list(length=limit)
+            
+            # Transform ObjectId to string
+            transformed_products = []
+            for product in products:
+                product['id'] = str(product.pop('_id'))
+                transformed_products.append(product)
+            
+            logger.info(f"Successfully fetched {len(transformed_products)} products")
+            
+            return JSONResponse(content={
+                "total": total,
+                "products": transformed_products,
+                "page": skip // limit + 1,
+                "pages": (total + limit - 1) // limit
+            })
+
+        except Exception as query_err:
+            logger.error(f"Error querying products: {str(query_err)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error querying products: {str(query_err)}"
+            )
+
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(500, f"Error retrieving products: {str(e)}")
+        logger.error(f"Unexpected error in list_products: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error: {str(e)}"
+        )
 
 @app.get('/products/{product_id}', response_model=Product)
 async def get_product(product_id: str):
@@ -119,7 +150,7 @@ async def get_product(product_id: str):
     Get a single product by ID.
     """
     try:
-        product = await db.find_one({'_id': parse_object_id(product_id)})
+        product = await products_collection.find_one({'_id': parse_object_id(product_id)})
         if not product:
             raise HTTPException(404, 'Product not found')
         
@@ -148,10 +179,10 @@ async def create_product(product: Product, user: dict = Depends(verify_token)):
             ingredient['quantity'] = float(ingredient['quantity'])
         
         # Insert into MongoDB
-        result = await db.insert_one(product_dict)
+        result = await products_collection.insert_one(product_dict)
         
         # Return the created product
-        created_product = await db.find_one({'_id': result.inserted_id})
+        created_product = await products_collection.find_one({'_id': result.inserted_id})
         created_product['id'] = str(created_product.pop('_id'))
         return JSONResponse(content=created_product)
     except Exception as e:
@@ -175,7 +206,7 @@ async def update_product(product_id: str, product: Product, user: dict = Depends
             ingredient['quantity'] = float(ingredient['quantity'])
         
         # Update in MongoDB
-        result = await db.update_one(
+        result = await products_collection.update_one(
             {'_id': parse_object_id(product_id)},
             {'$set': product_dict}
         )
@@ -184,7 +215,7 @@ async def update_product(product_id: str, product: Product, user: dict = Depends
             raise HTTPException(404, 'Product not found')
         
         # Return the updated product
-        updated_product = await db.find_one({'_id': parse_object_id(product_id)})
+        updated_product = await products_collection.find_one({'_id': parse_object_id(product_id)})
         updated_product['id'] = str(updated_product.pop('_id'))
         return JSONResponse(content=updated_product)
     except HTTPException:
@@ -201,7 +232,7 @@ async def delete_product(product_id: str, user: dict = Depends(verify_token)):
         raise HTTPException(403, 'Only sellers can delete products')
     
     try:
-        result = await db.delete_one({'_id': parse_object_id(product_id)})
+        result = await products_collection.delete_one({'_id': parse_object_id(product_id)})
         if result.deleted_count == 0:
             raise HTTPException(404, 'Product not found')
         return JSONResponse(content={'message': 'Product deleted successfully'})
@@ -216,7 +247,7 @@ async def list_categories():
     Get a list of all unique product categories.
     """
     try:
-        categories = await db.distinct('category')
+        categories = await products_collection.distinct('category')
         return JSONResponse(content=categories)
     except Exception as e:
         raise HTTPException(500, f"Error retrieving categories: {str(e)}")
@@ -227,7 +258,32 @@ async def list_tags():
     Get a list of all unique product tags.
     """
     try:
-        tags = await db.distinct('tags')
+        tags = await products_collection.distinct('tags')
         return JSONResponse(content=tags)
     except Exception as e:
         raise HTTPException(500, f"Error retrieving tags: {str(e)}")
+
+@app.on_event("startup")
+async def startup_event():
+    """Insert test data if database is empty"""
+    try:
+        count = await products_collection.count_documents({})
+        if count == 0:
+            logger.info("No products found, inserting test product")
+            test_product = {
+                "name": "Test Cake",
+                "description": "A delicious test cake",
+                "price": 9.99,
+                "category": "Cakes",
+                "is_available": True,
+                "image_url": "https://example.com/cake.jpg",
+                "tags": ["test", "cake"],
+                "recipe": [
+                    {"ingredient": "flour", "quantity": 2.0, "unit": "cups"},
+                    {"ingredient": "sugar", "quantity": 1.5, "unit": "cups"}
+                ]
+            }
+            await products_collection.insert_one(test_product)
+            logger.info("Test product inserted successfully")
+    except Exception as e:
+        logger.error(f"Error in startup event: {str(e)}")

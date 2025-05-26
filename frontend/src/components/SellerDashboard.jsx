@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createProduct, updateProduct, deleteProduct, fetchOrders } from '../api';
 import './SellerDashboard.css';
 
-export default function SellerDashboard({ products, token, onProductsChange }) {
+export default function SellerDashboard({ products = [], token, onProductsChange }) {
   const [orders, setOrders] = useState([]);
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -16,12 +16,21 @@ export default function SellerDashboard({ products, token, onProductsChange }) {
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
+    if (!token) return;
+
     fetchOrders(token)
-      .then(response => setOrders(response.data))
+      .then(response => {
+        if (response.data) {
+          const ordersData = Array.isArray(response.data) ? response.data :
+                            response.data.orders ? response.data.orders :
+                            response.data.data ? response.data.data : [];
+          setOrders(ordersData);
+        }
+      })
       .catch(error => {
         console.error('Failed to fetch orders:', error);
         setError('Failed to load orders');
-        setTimeout(() => setError(''), 5000); // Clear error after 5 seconds
+        setTimeout(() => setError(''), 5000);
       });
   }, [token]);
 
@@ -42,21 +51,24 @@ export default function SellerDashboard({ products, token, onProductsChange }) {
       };
 
       const response = await createProduct(token, productData);
-      onProductsChange([...products, response.data]);
-      setNewProduct({ 
-        name: '', 
-        description: '', 
-        price: '', 
-        category: '',
-        tags: [],
-        recipe: [] 
-      });
-      setSuccessMessage('Product created successfully!');
-      setTimeout(() => setSuccessMessage(''), 5000); // Clear success message after 5 seconds
+      if (response.data) {
+        const newProductData = response.data;
+        onProductsChange([...products, newProductData]);
+        setNewProduct({ 
+          name: '', 
+          description: '', 
+          price: '', 
+          category: '',
+          tags: [],
+          recipe: [] 
+        });
+        setSuccessMessage('Product created successfully!');
+        setTimeout(() => setSuccessMessage(''), 5000);
+      }
     } catch (error) {
       console.error('Failed to create product:', error);
       setError(error.response?.data?.detail || 'Failed to create product');
-      setTimeout(() => setError(''), 5000); // Clear error after 5 seconds
+      setTimeout(() => setError(''), 5000);
     }
   };
 
@@ -68,15 +80,18 @@ export default function SellerDashboard({ products, token, onProductsChange }) {
     
     try {
       await deleteProduct(token, productId);
-      onProductsChange(products.filter(p => p.id !== productId));
+      onProductsChange(products.filter(p => p._id !== productId));
       setSuccessMessage('Product deleted successfully!');
-      setTimeout(() => setSuccessMessage(''), 5000); // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
     } catch (error) {
       console.error('Failed to delete product:', error);
       setError('Failed to delete product');
-      setTimeout(() => setError(''), 5000); // Clear error after 5 seconds
+      setTimeout(() => setError(''), 5000);
     }
   };
+
+  // Ensure products is always an array
+  const displayProducts = Array.isArray(products) ? products : [];
 
   return (
     <div className="seller-dashboard">
@@ -159,15 +174,15 @@ export default function SellerDashboard({ products, token, onProductsChange }) {
               </tr>
             </thead>
             <tbody>
-              {products.map(product => (
-                <tr key={product.id}>
+              {displayProducts.map(product => (
+                <tr key={product._id || product.id}>
                   <td>{product.name}</td>
                   <td>{product.description}</td>
                   <td>{product.category || 'Other'}</td>
                   <td>${parseFloat(product.price).toFixed(2)}</td>
                   <td>
                     <button 
-                      onClick={() => handleDeleteProduct(product.id)}
+                      onClick={() => handleDeleteProduct(product._id || product.id)}
                       className="delete-btn"
                     >
                       Delete
@@ -193,16 +208,12 @@ export default function SellerDashboard({ products, token, onProductsChange }) {
               </tr>
             </thead>
             <tbody>
-              {orders.map(order => (
-                <tr key={order.id}>
-                  <td>{order.id}</td>
+              {Array.isArray(orders) && orders.map(order => (
+                <tr key={order._id || order.id}>
+                  <td>{order._id || order.id}</td>
                   <td>{order.user_email}</td>
                   <td>${parseFloat(order.total).toFixed(2)}</td>
-                  <td>
-                    <span className={`status ${order.status}`}>
-                      {order.status}
-                    </span>
-                  </td>
+                  <td>{order.status}</td>
                 </tr>
               ))}
             </tbody>

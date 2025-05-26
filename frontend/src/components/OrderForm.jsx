@@ -1,53 +1,97 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './OrderForm.css';
 
-export default function OrderForm({ items, products, onSubmit, onClear }) {
-  const getProduct = (productId) => {
-    return products.find(p => p.id === productId);
+export default function OrderForm({ orderItems, onPlaceOrder, setOrderItems }) {
+  const [address, setAddress] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    const orderData = {
+      items: orderItems,
+      delivery_address: address,
+      notes: notes
+    };
+
+    onPlaceOrder(orderData);
+    setAddress('');
+    setNotes('');
   };
 
   const calculateTotal = () => {
-    return items.reduce((total, item) => {
-      const product = getProduct(item.product_id);
-      return total + (product ? product.price * item.quantity : 0);
-    }, 0);
+    return orderItems.reduce((total, item) => total + item.price, 0).toFixed(2);
   };
+
+  const removeItem = (index) => {
+    setOrderItems(orderItems.filter((_, i) => i !== index));
+  };
+
+  if (!orderItems.length) {
+    return null;
+  }
 
   return (
     <div className="order-form">
-      <h3>Your Order</h3>
+      <h2>Your Order</h2>
+      
       <div className="order-items">
-        {items.map((item, index) => {
-          const product = getProduct(item.product_id);
-          if (!product) return null;
-          
-          return (
-            <div key={index} className="order-item">
-              <div className="item-info">
-                <span className="item-name">{product.name}</span>
-                <span className="item-quantity">x{item.quantity}</span>
-              </div>
-              <span className="item-price">
-                ${(product.price * item.quantity).toFixed(2)}
-              </span>
-            </div>
-          );
-        })}
+        {orderItems.map((item, index) => (
+          <div key={index} className="order-item">
+            <span>{item.name} - ${item.price.toFixed(2)}</span>
+            <button 
+              onClick={() => removeItem(index)}
+              className="remove-item"
+              aria-label={`Remove ${item.name} from order`}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
       </div>
-      
+
       <div className="order-total">
-        <span>Total:</span>
-        <span className="total-amount">${calculateTotal().toFixed(2)}</span>
+        Total: ${calculateTotal()}
       </div>
-      
-      <div className="order-actions">
-        <button onClick={onClear} className="clear-btn">
-          Clear Order
-        </button>
-        <button onClick={onSubmit} className="submit-btn">
-          Place Order
-        </button>
-      </div>
+
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label htmlFor="address">Delivery Address:</label>
+          <textarea
+            id="address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            required
+            placeholder="Enter your delivery address"
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="notes">Order Notes:</label>
+          <textarea
+            id="notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Any special instructions?"
+          />
+        </div>
+
+        <div className="form-actions">
+          <button 
+            type="button" 
+            onClick={() => setOrderItems([])}
+            className="clear-order"
+          >
+            Clear Order
+          </button>
+          <button 
+            type="submit"
+            className="place-order"
+          >
+            Place Order
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

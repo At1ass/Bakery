@@ -17,6 +17,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [sessionTimeout, setSessionTimeout] = useState(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const resetSession = useCallback(() => {
     if (sessionTimeout) {
@@ -30,8 +31,10 @@ export default function App() {
   }, [sessionTimeout]);
 
   const handleUserActivity = useCallback(() => {
-    resetSession();
-  }, [resetSession]);
+    if (token && user) {
+      resetSession();
+    }
+  }, [resetSession, token, user]);
 
   useEffect(() => {
     // Add event listeners for user activity
@@ -50,63 +53,125 @@ export default function App() {
     };
   }, [handleUserActivity, sessionTimeout]);
 
+  // Single useEffect for user initialization
   useEffect(() => {
-    const initializeApp = async () => {
-      if (token) {
-        try {
-          localStorage.setItem('token', token);
-          resetSession();
+    let isMounted = true;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 2000;
 
-          const [userResponse, productsResponse] = await Promise.all([
-            getCurrentUser(token),
-            fetchProducts(token)
-          ]);
-
-          setUser(userResponse.data);
-          setProducts(productsResponse.data);
-        } catch (error) {
-          console.error('Failed to initialize:', error);
-          
-          if (error.response?.status === 401) {
-            setError('Your session has expired. Please log in again.');
-          } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
-            setError('Unable to connect to the server. Please check your connection and try again.');
-          } else {
-            setError('Failed to load user data. Please log in again.');
-          }
-          
-          handleLogout();
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        handleLogout();
+    const initializeUser = async () => {
+      // Skip if already initialized or no token
+      if (isInitialized || !token) {
         setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await getCurrentUser(token);
+        if (!isMounted) return;
+
+        setUser(response.data);
+        resetSession();
+        setLoading(false);
+        setIsInitialized(true);
+        setError('');
+      } catch (error) {
+        if (!isMounted) return;
+
+        console.error('Failed to fetch user:', error);
+        
+        if (error.response?.status === 401 || retryCount >= MAX_RETRIES) {
+          handleLogout();
+          setError('Session expired or invalid. Please log in again.');
+          setLoading(false);
+          setIsInitialized(true);
+        } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
+          retryCount++;
+          setError(`Unable to connect to the server. Retry ${retryCount}/${MAX_RETRIES}...`);
+          setTimeout(initializeUser, RETRY_DELAY);
+        } else {
+          handleLogout();
+          setError('Failed to load user data. Please try logging in again.');
+          setLoading(false);
+          setIsInitialized(true);
+        }
       }
     };
 
-    initializeApp();
+    initializeUser();
+
+    return () => {
+      isMounted = false;
+    };
   }, [token, resetSession]);
 
-  const handleLogin = (newToken) => {
+  // Products fetch effect
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProducts = async () => {
+      if (!token || !user) return;
+
+      try {
+        console.log('Fetching products with token:', token);
+        const response = await fetchProducts(token);
+        console.log('Raw products response:', response);
+        
+        if (isMounted) {
+          if (Array.isArray(response.data)) {
+            console.log('Setting products state with:', response.data);
+            setProducts(response.data);
+          } else {
+            console.error('Invalid products data format:', response.data);
+            setError('Failed to load products: Invalid data format');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch products:', error);
+        if (isMounted && error.response?.status === 401) {
+          handleLogout();
+          setError('Session expired. Please log in again.');
+        } else if (isMounted) {
+          setError('Failed to load products. Please refresh the page.');
+        }
+      }
+    };
+
+    loadProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token, user]);
+
+  const handleLogin = useCallback((newToken) => {
     setError('');
     setToken(newToken);
-    resetSession();
-  };
+    localStorage.setItem('token', newToken);
+    setIsInitialized(false);
+  }, []);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     setToken('');
     localStorage.removeItem('token');
     setUser(null);
     setOrderItems([]);
     setError('');
     setSuccessMessage('');
+    setIsInitialized(true);
     if (sessionTimeout) {
       clearTimeout(sessionTimeout);
     }
+  }, [sessionTimeout]);
+
+  const handleAddToOrder = (product) => {
+    setOrderItems([...orderItems, product]);
+    setSuccessMessage('Product added to order');
+    setTimeout(() => setSuccessMessage(''), 3000);
   };
 
-  const handleOrder = async () => {
+  const handlePlaceOrder = async (orderData) => {
     setError('');
     setSuccessMessage('');
     
@@ -117,7 +182,7 @@ export default function App() {
     }
 
     try {
-      await createOrder(token, { items: orderItems });
+      await createOrder(token, orderData);
       setOrderItems([]);
       setSuccessMessage('Order placed successfully!');
       setTimeout(() => setSuccessMessage(''), 5000);
@@ -138,59 +203,48 @@ export default function App() {
     }
   };
 
+  const handleProductsChange = useCallback((newProducts) => {
+    setProducts(newProducts);
+  }, []);
+
   if (loading) {
     return <div className="loading">Loading...</div>;
   }
 
-  if (!token) {
-    return <Login onLogin={handleLogin} />;
-  }
-
   return (
-    <div className="container">
+    <div className="app" onClick={handleUserActivity}>
       <header>
         <h1>Confectionery Store</h1>
-        <div className="user-info">
-          <span>Welcome, {user?.email}</span>
-          <button onClick={handleLogout} className="logout-btn">
-            Logout
-          </button>
-        </div>
+        {user && (
+          <div className="user-info">
+            Welcome, {user.email}
+            <button onClick={handleLogout} className="logout-btn">Logout</button>
+          </div>
+        )}
       </header>
 
       {error && <div className="error-message" role="alert">{error}</div>}
       {successMessage && <div className="success-message" role="status">{successMessage}</div>}
 
-      {user?.role === 'seller' ? (
-        <SellerDashboard
-          products={products}
-          token={token}
-          onProductsChange={setProducts}
-          onError={(error) => {
-            if (error.response?.status === 401) {
-              handleLogout();
-              setError('Your session has expired. Please log in again.');
-            }
-          }}
+      {!token ? (
+        <Login onLogin={handleLogin} />
+      ) : user?.role === 'seller' ? (
+        <SellerDashboard 
+          products={products} 
+          token={token} 
+          onProductsChange={handleProductsChange}
         />
       ) : (
-        <div className="user-view">
-          <ProductList
-            products={products}
-            onSelect={(items) => {
-              setError('');
-              setOrderItems([...orderItems, ...items]);
-            }}
+        <div className="customer-view">
+          <ProductList 
+            products={products} 
+            onAddToOrder={handleAddToOrder} 
           />
           {orderItems.length > 0 && (
-            <OrderForm
-              items={orderItems}
-              products={products}
-              onSubmit={handleOrder}
-              onClear={() => {
-                setError('');
-                setOrderItems([]);
-              }}
+            <OrderForm 
+              orderItems={orderItems} 
+              onSubmit={handlePlaceOrder}
+              onClear={() => setOrderItems([])} 
             />
           )}
         </div>

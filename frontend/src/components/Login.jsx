@@ -75,14 +75,20 @@ export default function Login({ onLogin }) {
     setLoading(true);
     
     try {
+      let loginResponse;
       if (isRegistering) {
         await register(email, password, role);
         // After registration, automatically log in
-        const response = await login(email, password);
-        onLogin(response.access_token);
+        loginResponse = await login(email, password);
       } else {
-        const response = await login(email, password);
-        onLogin(response.access_token);
+        loginResponse = await login(email, password);
+      }
+
+      if (loginResponse && loginResponse.access_token) {
+        onLogin(loginResponse.access_token);
+      } else {
+        console.error('Invalid login response:', loginResponse);
+        throw new Error('No access token received');
       }
     } catch (error) {
       console.error('Authentication error:', error);
@@ -97,7 +103,7 @@ export default function Login({ onLogin }) {
       } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
         setError('Unable to connect to the authentication service. Please try again later.');
       } else {
-        setError(error.response?.data?.detail || 'Authentication failed. Please try again.');
+        setError(error.response?.data?.detail || error.message || 'Authentication failed. Please try again.');
       }
     } finally {
       setLoading(false);
