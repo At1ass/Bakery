@@ -19,12 +19,18 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
+# Install curl for health checks
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
 # Create non-root user
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 
 # Copy only necessary files from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
+COPY --from=builder /usr/local/bin/uvicorn /usr/local/bin/uvicorn
 COPY --chown=appuser:appuser . .
 
 # Set environment variables

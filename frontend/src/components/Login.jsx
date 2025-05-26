@@ -7,21 +7,21 @@ export default function Login({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState('user');
+  const [role, setRole] = useState('Customer');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState('');
 
   const validatePassword = (password) => {
-    const hasMinLength = password.length >= 8;
+    const hasMinLength = password.length >= 12;
     const hasUpperCase = /[A-Z]/.test(password);
     const hasLowerCase = /[a-z]/.test(password);
     const hasNumbers = /\d/.test(password);
-    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    const hasSpecialChar = /[@$!%*?&]/.test(password);
 
     if (hasMinLength && hasUpperCase && hasLowerCase && hasNumbers && hasSpecialChar) {
       return 'strong';
-    } else if (hasMinLength && (hasUpperCase || hasLowerCase) && (hasNumbers || hasSpecialChar)) {
+    } else if (hasMinLength && ((hasUpperCase && hasLowerCase) || (hasNumbers && hasSpecialChar))) {
       return 'medium';
     }
     return 'weak';
@@ -50,13 +50,13 @@ export default function Login({ onLogin }) {
         return false;
       }
 
-      if (password.length < 8) {
-        setError('Password must be at least 8 characters long.');
+      if (password.length < 12) {
+        setError('Password must be at least 12 characters long.');
         return false;
       }
 
-      if (passwordStrength === 'weak') {
-        setError('Password is too weak. Please include uppercase, lowercase, numbers, and special characters.');
+      if (!(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$/.test(password))) {
+        setError('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&).');
         return false;
       }
     }
@@ -156,13 +156,18 @@ export default function Login({ onLogin }) {
               required
               placeholder="Enter your password"
               autoComplete={isRegistering ? "new-password" : "current-password"}
-              minLength="8"
+              minLength="12"
               disabled={loading}
               aria-label="Password"
             />
             {isRegistering && passwordStrength && (
               <div className={`password-strength ${getPasswordStrengthClass()}`}>
                 Password strength: {passwordStrength}
+                {passwordStrength !== 'strong' && (
+                  <div className="password-requirements">
+                    Must be at least 12 characters and include uppercase, lowercase, number, and special character (@$!%*?&).
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -179,7 +184,7 @@ export default function Login({ onLogin }) {
                   required
                   placeholder="Confirm your password"
                   autoComplete="new-password"
-                  minLength="8"
+                  minLength="12"
                   disabled={loading}
                   aria-label="Confirm password"
                 />
@@ -195,8 +200,8 @@ export default function Login({ onLogin }) {
                   disabled={loading}
                   aria-label="Select role"
                 >
-                  <option value="user">Customer</option>
-                  <option value="seller">Seller</option>
+                  <option value="Customer">Customer</option>
+                  <option value="Seller">Seller</option>
                 </select>
               </div>
             </>

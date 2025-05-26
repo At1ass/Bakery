@@ -7,15 +7,16 @@ const ORDER_URL = 'http://localhost:8003';
 // Create axios instances with default config
 const authApi = axios.create({
     baseURL: AUTH_URL,
-    withCredentials: false,
+    withCredentials: true,  // Enable credentials for CORS
     headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
     }
 });
 
 const catalogApi = axios.create({
     baseURL: CATALOG_URL,
-    withCredentials: false,
+    withCredentials: true,  // Enable credentials for CORS
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
@@ -24,7 +25,7 @@ const catalogApi = axios.create({
 
 const orderApi = axios.create({
     baseURL: ORDER_URL,
-    withCredentials: false,
+    withCredentials: true,  // Enable credentials for CORS
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
@@ -271,4 +272,26 @@ export async function getCurrentUser(token) {
         console.error('Error getting current user:', error);
         throw error;
     }
+}
+
+export async function refreshToken(token) {
+    const response = await authApi.post('/refresh', null, { 
+        headers: { Authorization: `Bearer ${token}` },
+        validateStatus: function (status) {
+            return status >= 200 && status < 500;
+        }
+    });
+
+    if (response.status !== 200) {
+        throw {
+            response: response,
+            message: response.data?.detail || 'Token refresh failed'
+        };
+    }
+
+    if (!response.data || !response.data.access_token) {
+        throw new Error('Invalid response format: missing access token');
+    }
+
+    return response.data.access_token;
 }

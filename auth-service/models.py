@@ -5,7 +5,7 @@ import re
 
 class UserBase(BaseModel):
     email: EmailStr = Field(..., description="User's email address")
-    role: str = Field(..., pattern="^(customer|seller|admin)$", description="User's role")
+    role: str = Field(..., pattern="^(Customer|Seller|Admin)$", description="User's role")
 
     @validator('email')
     def email_must_be_lowercase(cls, v):
@@ -53,7 +53,7 @@ class Token(BaseModel):
     access_token: str = Field(..., description="JWT access token")
     refresh_token: str = Field(..., description="JWT refresh token")
     token_type: str = Field("bearer", pattern="^bearer$", description="Token type (always 'bearer')")
-    role: str = Field(..., pattern="^(customer|seller|admin)$", description="User's role")
+    role: str = Field(..., pattern="^(Customer|Seller|Admin)$", description="User's role")
 
 class RefreshToken(BaseModel):
     refresh_token: str = Field(..., description="JWT refresh token to exchange for new access token")

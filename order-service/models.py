@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, validator, constr
-from typing import List, Optional
+from pydantic import BaseModel, Field, validator, field_validator, StringConstraints
+from typing import List, Optional, Annotated
 from decimal import Decimal
 from datetime import datetime
 from enum import Enum
@@ -21,13 +21,13 @@ class OrderItem(BaseModel):
     total_price: Optional[Decimal] = Field(None, description="Total price for this item (filled by server)")
     notes: Optional[str] = Field(None, max_length=200, description="Special instructions for this item")
 
-    @validator('product_id')
+    @field_validator('product_id')
     def validate_product_id(cls, v):
         if not re.match(r'^[0-9a-fA-F]{24}$', v):
             raise ValueError('Invalid product ID format')
         return v
 
-    @validator('notes')
+    @field_validator('notes')
     def validate_notes(cls, v):
         if v:
             if not re.match(r'^[\w\s\-\',\.\!\?]+$', v):
@@ -41,11 +41,11 @@ class Order(BaseModel):
     items: List[OrderItem] = Field(..., min_items=1, max_items=50, description="List of ordered items")
     total: Optional[Decimal] = Field(None, description="Total order amount (filled by server)")
     status: OrderStatus = Field(default=OrderStatus.PENDING, description="Order status")
-    delivery_address: constr(min_length=10, max_length=200) = Field(
+    delivery_address: Annotated[str, StringConstraints(min_length=10, max_length=200)] = Field(
         ...,
         description="Delivery address"
     )
-    contact_phone: constr(regex=r'^\+?1?\d{9,15}$') = Field(
+    contact_phone: Annotated[str, StringConstraints(pattern=r'^\+?1?\d{9,15}$')] = Field(
         ...,
         description="Contact phone number"
     )
@@ -54,13 +54,13 @@ class Order(BaseModel):
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
     estimated_delivery: Optional[datetime] = Field(None, description="Estimated delivery time")
 
-    @validator('delivery_address')
+    @field_validator('delivery_address')
     def validate_address(cls, v):
         if not re.match(r'^[\w\s\-\',\.\#\&]+$', v):
             raise ValueError('Address contains invalid characters')
         return v.strip()
 
-    @validator('delivery_notes')
+    @field_validator('delivery_notes')
     def validate_delivery_notes(cls, v):
         if v:
             if not re.match(r'^[\w\s\-\',\.\!\?]+$', v):
@@ -68,7 +68,7 @@ class Order(BaseModel):
             return v.strip()
         return v
 
-    @validator('items')
+    @field_validator('items')
     def validate_items(cls, v):
         product_ids = set()
         for item in v:
@@ -82,7 +82,7 @@ class Order(BaseModel):
             Decimal: lambda v: float(v),
             datetime: lambda v: v.isoformat()
         }
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "items": [
                     {

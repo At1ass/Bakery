@@ -1,25 +1,53 @@
 from fastapi import FastAPI, HTTPException, Depends, Header, Query, Request
 from motor.motor_asyncio import AsyncIOMotorClient
-from models import Product, Ingredient
 from fastapi.middleware.cors import CORSMiddleware
-import os, asyncio
-from jose import jwt
-from typing import Optional, List
-from bson.objectid import ObjectId
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel, Field, ConfigDict
+from bson.objectid import ObjectId
+from typing import Optional, List, Any, Annotated
+from models import Product, Ingredient
+import os, asyncio
 import json
-from decimal import Decimal
 import re
 import logging
+import traceback
+from jose import jwt
+from decimal import Decimal
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from datetime import datetime
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)-8s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
+
+def log_separator(message=""):
+    logger.info("="*50)
+    if message:
+        logger.info(f"=== {message} ===")
+        logger.info("="*50)
+
+# Custom JSON encoder for MongoDB ObjectId and Decimal
+def custom_json_encoder(obj):
+    try:
+        logger.info(f"Encoding object type: {type(obj)}")
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        if isinstance(obj, Decimal):
+            return float(obj)
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return obj
+    except Exception as e:
+        logger.error(f"Error in custom_json_encoder: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise
 
 # Initialize FastAPI app with documentation settings
 app = FastAPI(
@@ -89,11 +117,19 @@ async def init_db():
     
     try:
         db = await get_database()
+        # Drop existing collections to start fresh
         products_collection = db.get_collection('products')
+        await products_collection.drop()
+        
+        # Create new collection
+        products_collection = db.get_collection('products')
+        
         # Create indexes
         await products_collection.create_index([("name", 1)], unique=True)
         await products_collection.create_index([("category", 1)])
         await products_collection.create_index([("tags", 1)])
+        
+        logger.info("Successfully initialized database and created indexes")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
         raise
@@ -105,13 +141,12 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    if 'client' in globals():
-        client.close()
-        logger.info("Closed MongoDB connection")
+    # Motor client cleanup happens automatically
+    logger.info("Shutting down application")
 
 # Security configuration
-SECRET = os.getenv('SECRET')
-if not SECRET or len(SECRET) < 32:
+JWT_SECRET = os.getenv('JWT_SECRET')
+if not JWT_SECRET or len(JWT_SECRET) < 32:
     logger.error("Insecure or missing SECRET key")
     raise ValueError("SECRET key must be at least 32 characters long")
 
@@ -130,7 +165,7 @@ async def verify_token(authorization: Optional[str] = Header(None)) -> dict:
                 detail='Invalid authentication scheme',
                 headers={"WWW-Authenticate": "Bearer"}
             )
-        payload = jwt.decode(token, SECRET, algorithms=['HS256'])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
         if payload.get("type") != "access":
             raise HTTPException(
                 status_code=401,
@@ -207,45 +242,75 @@ async def list_products(
         sort_direction = -1 if sort_order == "desc" else 1
         
         try:
+            log_separator("Count Operation")
+            
             # Get total count
             total = await products_collection.count_documents(query)
-            logger.info(f"Total products found: {total}")
-
+            logger.info(f"Found {total} documents matching query")
+            
             if total == 0:
+                logger.info("No documents found, returning empty result")
                 return JSONResponse(content={
                     "total": 0,
                     "products": [],
                     "page": 1,
                     "pages": 0
                 })
-
-            # Get paginated results
-            cursor = products_collection.find(query)
-            cursor.sort(sort_field, sort_direction)
-            cursor.skip(skip).limit(limit)
-            products = await cursor.to_list(length=limit)
             
-            # Transform ObjectId to string and handle decimal serialization
+            log_separator("Find Operation")
+            
+            # Create cursor with sorting and pagination
+            cursor = products_collection.find(query)
+            
+            # Apply sorting
+            sort_spec = {sort_field: sort_direction}
+            logger.info(f"Sorting with: {sort_spec}")
+            cursor = cursor.sort(sort_spec)
+            
+            # Apply pagination
+            cursor = cursor.skip(skip).limit(limit)
+            logger.info(f"Applied pagination: skip={skip}, limit={limit}")
+            
+            # Get products as list
+            products = await cursor.to_list(length=limit)
+            logger.info(f"Retrieved {len(products)} products")
+            
+            # Transform products for JSON response
             transformed_products = []
             for product in products:
-                product['id'] = str(product.pop('_id'))
-                # Convert Decimal to float for JSON serialization
-                product['price'] = float(product['price'])
-                for ingredient in product.get('recipe', []):
-                    ingredient['quantity'] = float(ingredient['quantity'])
-                transformed_products.append(product)
+                # Log product structure
+                logger.info(f"Product before transformation: {type(product)}")
+                
+                # Manual conversion instead of using jsonable_encoder
+                product_dict = {}
+                for key, value in product.items():
+                    if key == '_id':
+                        product_dict['id'] = str(value)
+                    elif isinstance(value, ObjectId):
+                        product_dict[key] = str(value)
+                    elif isinstance(value, datetime):
+                        product_dict[key] = value.isoformat()
+                    elif isinstance(value, Decimal):
+                        product_dict[key] = float(value)
+                    else:
+                        product_dict[key] = value
+                
+                transformed_products.append(product_dict)
             
-            logger.info(f"Successfully fetched {len(transformed_products)} products")
-            
-            return JSONResponse(content={
+            # Build response
+            response_data = {
                 "total": total,
                 "products": transformed_products,
-                "page": skip // limit + 1,
-                "pages": (total + limit - 1) // limit
-            })
-
+                "page": skip // limit + 1 if limit > 0 else 1,
+                "pages": (total + limit - 1) // limit if limit > 0 else 1
+            }
+            
+            log_separator("Request Complete")
+            return JSONResponse(content=response_data)
+            
         except Exception as query_err:
             logger.error(f"Error querying products: {str(query_err)}")
+            logger.error(traceback.format_exc())
             raise HTTPException(
                 status_code=500,
                 detail=f"Error querying products: {str(query_err)}"
@@ -255,6 +320,7 @@ async def list_products(
         raise
     except Exception as e:
         logger.error(f"Unexpected error in list_products: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Unexpected error: {str(e)}"
@@ -272,17 +338,26 @@ async def get_product(request: Request, product_id: str):
                 detail='Product not found'
             )
         
-        # Transform ObjectId to string and handle decimal serialization
-        product['id'] = str(product.pop('_id'))
-        product['price'] = float(product['price'])
-        for ingredient in product.get('recipe', []):
-            ingredient['quantity'] = float(ingredient['quantity'])
+        # Transform product for JSON response - manually convert MongoDB types
+        product_dict = {}
+        for key, value in product.items():
+            if key == '_id':
+                product_dict['id'] = str(value)
+            elif isinstance(value, ObjectId):
+                product_dict[key] = str(value)
+            elif isinstance(value, datetime):
+                product_dict[key] = value.isoformat()
+            elif isinstance(value, Decimal):
+                product_dict[key] = float(value)
+            else:
+                product_dict[key] = value
         
-        return JSONResponse(content=product)
+        return JSONResponse(content=product_dict)
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error retrieving product: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Error retrieving product: {str(e)}"
@@ -310,11 +385,6 @@ async def create_product(request: Request, product: Product, user: dict = Depend
                 detail='Product with this name already exists'
             )
         
-        # Convert Decimal to float for MongoDB
-        product_dict['price'] = float(product_dict['price'])
-        for ingredient in product_dict.get('recipe', []):
-            ingredient['quantity'] = float(ingredient['quantity'])
-        
         # Add metadata
         product_dict['created_by'] = user.get('sub')
         product_dict['created_at'] = datetime.utcnow()
@@ -325,15 +395,30 @@ async def create_product(request: Request, product: Product, user: dict = Depend
         
         # Return the created product
         created_product = await products_collection.find_one({'_id': result.inserted_id})
-        created_product['id'] = str(created_product.pop('_id'))
+        
+        # Transform product for JSON response - manually convert MongoDB types
+        product_dict = {}
+        for key, value in created_product.items():
+            if key == '_id':
+                product_dict['id'] = str(value)
+            elif isinstance(value, ObjectId):
+                product_dict[key] = str(value)
+            elif isinstance(value, datetime):
+                product_dict[key] = value.isoformat()
+            elif isinstance(value, Decimal):
+                product_dict[key] = float(value)
+            else:
+                product_dict[key] = value
+        
         return JSONResponse(
             status_code=201,
-            content=created_product
+            content=product_dict
         )
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error creating product: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Error creating product: {str(e)}"
@@ -385,11 +470,6 @@ async def update_product(
                     detail='Product with this name already exists'
                 )
         
-        # Convert Decimal to float for MongoDB
-        product_dict['price'] = float(product_dict['price'])
-        for ingredient in product_dict.get('recipe', []):
-            ingredient['quantity'] = float(ingredient['quantity'])
-        
         # Preserve metadata and update timestamp
         product_dict['created_by'] = existing['created_by']
         product_dict['created_at'] = existing['created_at']
@@ -409,12 +489,27 @@ async def update_product(
         
         # Return the updated product
         updated_product = await products_collection.find_one({'_id': parse_object_id(product_id)})
-        updated_product['id'] = str(updated_product.pop('_id'))
-        return JSONResponse(content=updated_product)
+        
+        # Transform product for JSON response - manually convert MongoDB types
+        product_dict = {}
+        for key, value in updated_product.items():
+            if key == '_id':
+                product_dict['id'] = str(value)
+            elif isinstance(value, ObjectId):
+                product_dict[key] = str(value)
+            elif isinstance(value, datetime):
+                product_dict[key] = value.isoformat()
+            elif isinstance(value, Decimal):
+                product_dict[key] = float(value)
+            else:
+                product_dict[key] = value
+        
+        return JSONResponse(content=product_dict)
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error updating product: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Error updating product: {str(e)}"
@@ -464,6 +559,7 @@ async def delete_product(
         raise
     except Exception as e:
         logger.error(f"Error deleting product: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Error deleting product: {str(e)}"
@@ -478,6 +574,7 @@ async def list_categories(request: Request):
         return JSONResponse(content=sorted(categories))
     except Exception as e:
         logger.error(f"Error retrieving categories: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Error retrieving categories: {str(e)}"
@@ -492,6 +589,7 @@ async def list_tags(request: Request):
         return JSONResponse(content=sorted(tags))
     except Exception as e:
         logger.error(f"Error retrieving tags: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Error retrieving tags: {str(e)}"
@@ -543,6 +641,7 @@ async def create_test_data():
             logger.info("Test products inserted successfully")
     except Exception as e:
         logger.error(f"Error in create_test_data: {str(e)}")
+        logger.error(traceback.format_exc())
 
 @app.get("/health")
 async def health_check():
@@ -559,6 +658,7 @@ async def health_check():
         )
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=503,
             detail="Service unhealthy"

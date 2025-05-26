@@ -34,15 +34,14 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS configuration with specific origins and security headers
-ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:3001').split(',')
+ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3001').split(',')
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["*"],
-    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 # Security headers middleware
@@ -52,7 +51,8 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", ALLOWED_ORIGINS[0])
+    response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
 # Database configuration with connection pooling and retry logic
@@ -87,7 +87,17 @@ async def init_db():
     
     try:
         db = await get_database()
+        # Drop existing collections to start fresh
         users_collection = db.get_collection('users')
+        await users_collection.drop()
+        
+        # Create new collection
+        users_collection = db.get_collection('users')
+        
+        # Create indexes
+        await users_collection.create_index([("email", 1)], unique=True)
+        
+        logger.info("Successfully initialized database and created indexes")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
         raise
@@ -97,8 +107,8 @@ async def startup_event():
     await init_db()
 
 # Security configuration with strong defaults
-SECRET = os.getenv('SECRET')
-if not SECRET or len(SECRET) < 32:
+JWT_SECRET = os.getenv('JWT_SECRET')
+if not JWT_SECRET or len(JWT_SECRET) < 32:
     logger.error("Insecure or missing SECRET key")
     raise ValueError("SECRET key must be at least 32 characters long")
 
@@ -130,7 +140,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         "type": "access"
     })
     try:
-        return jwt.encode(to_encode, SECRET, algorithm=ALGORITHM)
+        return jwt.encode(to_encode, JWT_SECRET, algorithm=ALGORITHM)
     except Exception as e:
         logger.error(f"Token creation failed: {e}")
         raise HTTPException(
@@ -147,7 +157,7 @@ def create_refresh_token(data: dict) -> str:
         "type": "refresh"
     })
     try:
-        return jwt.encode(to_encode, SECRET, algorithm=ALGORITHM)
+        return jwt.encode(to_encode, JWT_SECRET, algorithm=ALGORITHM)
     except Exception as e:
         logger.error(f"Refresh token creation failed: {e}")
         raise HTTPException(
@@ -157,7 +167,7 @@ def create_refresh_token(data: dict) -> str:
 
 @app.post('/register', response_model=UserOut, status_code=status.HTTP_201_CREATED)
 @limiter.limit("3/minute")
-async def register(user: UserIn):
+async def register(request: Request, user: UserIn):
     try:
         # Validate password strength
         if len(user.password) < MIN_PASSWORD_LENGTH:
@@ -207,103 +217,108 @@ async def register(user: UserIn):
 
 @app.post('/login', response_model=Token)
 @limiter.limit("5/minute")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     try:
-        user = await users_collection.find_one({'email': form_data.username.lower()})
+        # Find user by email (case-insensitive)
+        user = await users_collection.find_one({
+            'email': {'$regex': f'^{form_data.username}$', '$options': 'i'}
+        })
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         
         # Check if account is locked
-        if user and user.get('locked_until'):
+        if user.get('locked_until'):
             if datetime.utcnow() < user['locked_until']:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Account is temporarily locked. Try again later.",
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=f"Account is locked until {user['locked_until']}",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
             else:
-                # Reset lock if expired
+                # Reset lock and failed attempts if lock period has expired
                 await users_collection.update_one(
                     {'_id': user['_id']},
                     {'$set': {'locked_until': None, 'failed_login_attempts': 0}}
                 )
-
-        if not user or not verify_password(form_data.password, user['hashed_password']):
-            if user:
-                # Increment failed login attempts
-                failed_attempts = user.get('failed_login_attempts', 0) + 1
-                update = {
-                    '$set': {
-                        'failed_login_attempts': failed_attempts
-                    }
+        
+        # Verify password
+        if not verify_password(form_data.password, user['hashed_password']):
+            # Increment failed login attempts
+            failed_attempts = user.get('failed_login_attempts', 0) + 1
+            update = {
+                '$set': {
+                    'failed_login_attempts': failed_attempts,
+                    'last_failed_login': datetime.utcnow()
                 }
-                
-                # Lock account after 5 failed attempts
-                if failed_attempts >= 5:
-                    lock_until = datetime.utcnow() + timedelta(minutes=15)
-                    update['$set']['locked_until'] = lock_until
-                
-                await users_collection.update_one({'_id': user['_id']}, update)
+            }
+            
+            # Lock account if too many failed attempts
+            if failed_attempts >= 5:
+                lock_until = datetime.utcnow() + timedelta(minutes=15)
+                update['$set']['locked_until'] = lock_until
+            
+            await users_collection.update_one({'_id': user['_id']}, update)
             
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid credentials",
+                detail="Incorrect email or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        # Reset failed attempts and update last login
+        # Reset failed login attempts on successful login
         await users_collection.update_one(
             {'_id': user['_id']},
             {
                 '$set': {
-                    'failed_login_attempts': 0,
                     'last_login': datetime.utcnow(),
+                    'failed_login_attempts': 0,
                     'locked_until': None
                 }
             }
         )
         
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        # Create tokens
         access_token = create_access_token(
-            data={
-                "sub": str(user['_id']),
-                "email": user['email'],
-                "role": user['role']
-            },
-            expires_delta=access_token_expires
+            data={"sub": str(user['_id']), "role": user.get('role', 'user')},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         )
-        
         refresh_token = create_refresh_token(
-            data={
-                "sub": str(user['_id']),
-                "email": user['email']
-            }
+            data={"sub": str(user['_id']), "role": user.get('role', 'user')}
         )
         
-        return Token(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            token_type="bearer",
-            role=user['role']
-        )
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "role": user['role']
+        }
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Login failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Login failed"
+            detail="Could not process login"
         )
 
 @app.post('/refresh', response_model=Token)
-async def refresh_token(token: str = Depends(oauth2_scheme)):
+@limiter.limit("5/minute")
+async def refresh_token(request: Request, token: str = Depends(oauth2_scheme)):
     try:
-        payload = jwt.decode(token, SECRET, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
         if payload.get("type") != "refresh":
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid token type"
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type",
+                headers={"WWW-Authenticate": "Bearer"},
             )
         
-        user_id: str = payload.get("sub")
+        user_id = payload.get("sub")
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -311,8 +326,7 @@ async def refresh_token(token: str = Depends(oauth2_scheme)):
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        from bson.objectid import ObjectId
-        user = await users_collection.find_one({'_id': ObjectId(user_id)})
+        user = await users_collection.find_one({"_id": ObjectId(user_id)})
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -321,32 +335,27 @@ async def refresh_token(token: str = Depends(oauth2_scheme)):
             )
         
         access_token = create_access_token(
-            data={
-                "sub": str(user['_id']),
-                "email": user['email'],
-                "role": user['role']
-            },
+            data={"sub": str(user['_id']), "role": user.get('role', 'user')},
             expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         
-        new_refresh_token = create_refresh_token(
-            data={
-                "sub": str(user['_id']),
-                "email": user['email']
-            }
-        )
-        
-        return Token(
-            access_token=access_token,
-            refresh_token=new_refresh_token,
-            token_type="bearer",
-            role=user['role']
-        )
+        return {
+            "access_token": access_token,
+            "refresh_token": token,  # Return the same refresh token
+            "token_type": "bearer",
+            "role": user['role']
+        }
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    except Exception as e:
+        logger.error(f"Token refresh failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not refresh token"
         )
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -356,7 +365,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
         if payload.get("type") != "access":
             raise credentials_exception
         
