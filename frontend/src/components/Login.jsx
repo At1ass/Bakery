@@ -128,111 +128,110 @@ export default function Login({ onLogin }) {
 
   return (
     <div className="login-container">
-      <div className="login-box">
+      <form onSubmit={handleSubmit} className="login-form">
         <h2>{isRegistering ? t('auth.register') : t('auth.login')}</h2>
         
         {error && <div className="error-message" role="alert">{error}</div>}
         
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="form-group">
-            <label htmlFor="email">{t('auth.email')}:</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder={t('auth.email')}
-              autoComplete="email"
-              disabled={loading}
-              aria-label={t('auth.email')}
-            />
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="password">{t('auth.password')}:</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={handlePasswordChange}
-              required
-              placeholder={t('auth.password')}
-              autoComplete={isRegistering ? "new-password" : "current-password"}
-              minLength={isRegistering ? "12" : undefined}
-              disabled={loading}
-              aria-label={t('auth.password')}
-            />
-            {isRegistering && passwordStrength && (
-              <div className={`password-strength ${getPasswordStrengthClass()}`}>
-                Password strength: {passwordStrength}
-                {passwordStrength !== 'strong' && (
-                  <div className="password-requirements">
-                    {t('auth.passwordMinLength')}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          
-          {isRegistering && (
-            <>
-              <div className="form-group">
-                <label htmlFor="confirmPassword">{t('auth.confirmPassword')}:</label>
-                <input
-                  id="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  placeholder={t('auth.confirmPassword')}
-                  autoComplete="new-password"
-                  minLength="12"
-                  disabled={loading}
-                  aria-label={t('auth.confirmPassword')}
-                />
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="role">{t('auth.role')}:</label>
-                <select
-                  id="role"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="role-select"
-                  disabled={loading}
-                  aria-label={t('auth.role')}
-                >
-                  <option value="Customer">{t('auth.customer')}</option>
-                  <option value="Seller">{t('auth.seller')}</option>
-                </select>
-              </div>
-            </>
-          )}
-          
-          <button 
-            type="submit" 
-            className={`submit-btn ${loading ? 'loading' : ''}`}
+        <div className="form-group">
+          <label htmlFor="email">{t('auth.email')}:</label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            placeholder={t('auth.email')}
+            autoComplete="email"
             disabled={loading}
-          >
-            {loading ? (
-              <span className="loading-spinner" aria-hidden="true"></span>
-            ) : (
-              isRegistering ? t('auth.registerButton') : t('auth.loginButton')
-            )}
-          </button>
-        </form>
+            aria-label={t('auth.email')}
+          />
+        </div>
         
-        <div className="toggle-form">
+        <div className="form-group">
+          <label htmlFor="password">{t('auth.password')}:</label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={handlePasswordChange}
+            required
+            placeholder={t('auth.password')}
+            autoComplete={isRegistering ? "new-password" : "current-password"}
+            minLength={isRegistering ? "12" : undefined}
+            disabled={loading}
+            aria-label={t('auth.password')}
+          />
+          {isRegistering && passwordStrength && (
+            <div className={`password-strength ${getPasswordStrengthClass()}`}>
+              Password strength: {passwordStrength}
+              {passwordStrength !== 'strong' && (
+                <div className="password-requirements">
+                  {t('auth.passwordMinLength')}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        
+        {isRegistering && (
+          <>
+            <div className="form-group">
+              <label htmlFor="confirmPassword">{t('auth.confirmPassword')}:</label>
+              <input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                placeholder={t('auth.confirmPassword')}
+                autoComplete="new-password"
+                minLength="12"
+                disabled={loading}
+                aria-label={t('auth.confirmPassword')}
+              />
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="role">{t('auth.role')}:</label>
+              <select
+                id="role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="role-select"
+                disabled={loading}
+                aria-label={t('auth.role')}
+              >
+                <option value="Customer">{t('auth.customer')}</option>
+                <option value="Seller">{t('auth.seller')}</option>
+              </select>
+            </div>
+          </>
+        )}
+        
+        <button 
+          type="submit" 
+          className={`submit-btn ${loading ? 'loading' : ''}`}
+          disabled={loading}
+        >
+          {loading ? (
+            <span className="loading-spinner" aria-hidden="true"></span>
+          ) : (
+            isRegistering ? t('auth.registerButton') : t('auth.loginButton')
+          )}
+        </button>
+        
+        <div className="form-switch">
           <button
+            type="button"
             onClick={() => {
+              console.log('Register/Login toggle clicked!', { isRegistering });
               setIsRegistering(!isRegistering);
               setError('');
               setPassword('');
               setConfirmPassword('');
               setPasswordStrength('');
             }}
-            className="toggle-btn"
             disabled={loading}
           >
             {isRegistering
@@ -240,7 +239,7 @@ export default function Login({ onLogin }) {
               : `${t('auth.dontHaveAccount')} ${t('auth.switchToRegister')}`}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
