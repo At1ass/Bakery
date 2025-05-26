@@ -50,7 +50,7 @@ orderApi.interceptors.response.use((response) => response, handleUnauthorized);
 
 export async function login(email, password) {
     const response = await authApi.post('/login', 
-        new URLSearchParams({ username: email, password }), 
+        new URLSearchParams({ username: email, password: password }), 
         { 
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             validateStatus: function (status) {
@@ -80,7 +80,7 @@ export async function login(email, password) {
 
 export async function register(email, password, role = 'Customer') {
     const response = await authApi.post('/register', 
-        { email, password, role },
+        { email, password: password, role },
         {
             validateStatus: function (status) {
                 return status >= 200 && status < 500;

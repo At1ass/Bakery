@@ -35,7 +35,7 @@ services:
       MONGO_URI: mongodb://mongo:27017
       JWT_SECRET: ${JWT_SECRET}
       NODE_ENV: production
-      ALLOWED_ORIGINS: http://localhost:3001
+      ALLOWED_ORIGINS: http://localhost:3001,https://localhost:3002
     depends_on:
       mongo:
         condition: service_healthy
@@ -66,6 +66,7 @@ services:
       MONGO_URI: mongodb://mongo:27017
       JWT_SECRET: ${JWT_SECRET}
       NODE_ENV: production
+      ALLOWED_ORIGINS: http://localhost:3001,https://localhost:3002
     depends_on:
       mongo:
         condition: service_healthy
@@ -98,6 +99,7 @@ services:
       CATALOG_URL: http://catalog:8000
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET}
+      ALLOWED_ORIGINS: http://localhost:3001,https://localhost:3002
     depends_on:
       auth:
         condition: service_healthy
@@ -130,6 +132,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3001:3001"
+      - "3002:3002"
     environment:
       NODE_ENV: production
       AUTH_API_URL: http://auth:8000

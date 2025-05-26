@@ -17,13 +17,20 @@ COPY . .
 RUN npm run build
 
 # Copy the environment.js file to be used as a template
-RUN cp /app/src/environment.js /app/dist/assets/environment.js.template
+RUN cp /app/src/environment.js /app/dist/assets/environment.js
 
 # Production stage
 FROM nginx:stable-alpine
 
 # Install envsubst for environment variable substitution
-RUN apk add --no-cache gettext
+RUN apk add --no-cache gettext openssl
+
+# Generate self-signed SSL certificate for development
+RUN mkdir -p /etc/nginx/ssl && \
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout /etc/nginx/ssl/key.pem \
+    -out /etc/nginx/ssl/cert.pem \
+    -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
 
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
@@ -36,7 +43,7 @@ COPY entrypoint.sh /
 RUN chmod +x /entrypoint.sh
 
 # Expose port
-EXPOSE 3001
+EXPOSE 3001 3002
 
 # Run entrypoint script
-ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/entrypoint.sh"]
