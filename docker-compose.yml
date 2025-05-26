@@ -1,3 +1,5 @@
+version: '3'
+
 services:
   mongo:
     image: mongo:6.0
@@ -30,11 +32,11 @@ services:
     container_name: confectionery-auth
     ports: ['8001:8000']
     environment:
-      AUTH_MONGO_URI: mongodb://mongo:27017
-      AUTH_JWT_SECRET: ${JWT_SECRET}
-      AUTH_ENVIRONMENT: production
-      AUTH_DEBUG: false
-      AUTH_ALLOWED_ORIGINS: http://localhost:3001,https://localhost:3002
+      - AUTH_MONGO_URI=mongodb://mongo:27017
+      - AUTH_JWT_SECRET=your_super_secret_key_minimum_32_characters
+      - AUTH_ENVIRONMENT=development
+      - AUTH_DEBUG=true
+      - AUTH_ALLOWED_ORIGINS=http://localhost:3001,https://localhost:3002
     depends_on:
       mongo:
         condition: service_healthy
@@ -62,10 +64,11 @@ services:
     container_name: confectionery-catalog
     ports: ['8002:8000']
     environment:
-      MONGO: mongodb://mongo:27017
-      JWT_SECRET: ${JWT_SECRET}
-      ENVIRONMENT: production
-      ALLOWED_ORIGINS: http://localhost:3001,https://localhost:3002
+      - MONGO=mongodb://mongo:27017
+      - JWT_SECRET=your_super_secret_key_minimum_32_characters
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - ALLOWED_ORIGINS=http://localhost:3001,https://localhost:3002
     depends_on:
       mongo:
         condition: service_healthy
@@ -93,14 +96,15 @@ services:
     container_name: confectionery-order
     ports: ['8003:8000']
     environment:
-      MONGO_URI: mongodb://mongo:27017
-      AUTH_SERVICE_URL: http://auth:8000
-      CATALOG_SERVICE_URL: http://catalog:8000
-      NODE_ENV: production
-      JWT_SECRET: ${JWT_SECRET}
-      ALLOWED_ORIGINS: http://localhost:3001,https://localhost:3002
-      DEBUG: "true"
-      LOG_LEVEL: DEBUG
+      - MONGO_URI=mongodb://mongo:27017
+      - AUTH_SERVICE_URL=http://auth:8000
+      - CATALOG_SERVICE_URL=http://catalog:8000
+      - NODE_ENV=development
+      - ENVIRONMENT=development
+      - JWT_SECRET=your_super_secret_key_minimum_32_characters
+      - ALLOWED_ORIGINS=http://localhost:3001,https://localhost:3002
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
     depends_on:
       auth:
         condition: service_healthy
@@ -134,14 +138,15 @@ services:
     ports:
       - "3001:3001"
     environment:
-      NODE_ENV: production
-      AUTH_API_URL: http://localhost:8001
-      CATALOG_API_URL: http://localhost:8002
-      ORDER_API_URL: http://localhost:8003
-      SESSION_TIMEOUT: 1800000
-      TOKEN_REFRESH_INTERVAL: 1500000
-      AUTH_CLIENT_ID: confectionery-frontend
-      JWT_SECRET: ${JWT_SECRET}
+      - NODE_ENV=development
+      - ENVIRONMENT=development
+      - AUTH_API_URL=http://localhost:8001
+      - CATALOG_API_URL=http://localhost:8002
+      - ORDER_API_URL=http://localhost:8003
+      - SESSION_TIMEOUT=1800000
+      - TOKEN_REFRESH_INTERVAL=1500000
+      - AUTH_CLIENT_ID=confectionery-frontend
+      - JWT_SECRET=your_super_secret_key_minimum_32_characters
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]

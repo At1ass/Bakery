@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, field_validator, StringConstraints, ConfigDict
-from typing import List, Optional, Annotated, Union
+from pydantic import BaseModel, Field, field_validator, StringConstraints, ConfigDict, BeforeValidator
+from typing import List, Optional, Annotated, Union, Any
 from decimal import Decimal
 from datetime import datetime
 from enum import Enum
@@ -17,17 +17,14 @@ class OrderStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class PyObjectId(str):
-    """Custom type for handling MongoDB ObjectId, ensuring proper validation and serialization"""
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, v):
-        if not isinstance(v, str) and not isinstance(v, ObjectId):
-            raise ValueError("Not a valid ObjectId")
+def validate_object_id(v: Any) -> str:
+    if isinstance(v, ObjectId):
         return str(v)
+    if isinstance(v, str) and ObjectId.is_valid(v):
+        return v
+    raise ValueError("Invalid ObjectId")
+
+PyObjectId = Annotated[str, BeforeValidator(validate_object_id)]
 
 
 class OrderItem(BaseModel):
