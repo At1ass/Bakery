@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { login, register } from '../api';
 import './Login.css';
 
 export default function Login({ onLogin }) {
+  const { t } = useTranslation();
   const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,12 +37,12 @@ export default function Login({ onLogin }) {
 
   const validateForm = () => {
     if (!email || !password) {
-      setError('Please fill in all required fields.');
+      setError(t('validation.required'));
       return false;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError('Please enter a valid email address.');
+      setError(t('validation.email'));
       return false;
     }
 
@@ -51,7 +53,7 @@ export default function Login({ onLogin }) {
       }
 
       if (password.length < 12) {
-        setError('Password must be at least 12 characters long.');
+        setError(t('auth.passwordMinLength'));
         return false;
       }
 
@@ -96,15 +98,15 @@ export default function Login({ onLogin }) {
       
       // Handle specific error cases
       if (error.response?.status === 401) {
-        setError('Invalid email or password. Please try again.');
+        setError(t('auth.loginError'));
       } else if (error.response?.status === 422) {
-        setError('Invalid input format. Please check your email and password.');
+        setError(t('error.validationError'));
       } else if (error.response?.status === 409 && isRegistering) {
         setError('This email is already registered. Please try logging in instead.');
       } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
-        setError('Unable to connect to the authentication service. Please try again later.');
+        setError(t('error.networkError'));
       } else {
-        setError(error.response?.data?.detail || error.message || 'Authentication failed. Please try again.');
+        setError(error.response?.data?.detail || error.message || t('error.unknownError'));
       }
     } finally {
       setLoading(false);
@@ -127,46 +129,46 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-container">
       <div className="login-box">
-        <h2>{isRegistering ? 'Create Account' : 'Welcome Back'}</h2>
+        <h2>{isRegistering ? t('auth.register') : t('auth.login')}</h2>
         
         {error && <div className="error-message" role="alert">{error}</div>}
         
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-group">
-            <label htmlFor="email">Email:</label>
+            <label htmlFor="email">{t('auth.email')}:</label>
             <input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="Enter your email"
+              placeholder={t('auth.email')}
               autoComplete="email"
               disabled={loading}
-              aria-label="Email address"
+              aria-label={t('auth.email')}
             />
           </div>
           
           <div className="form-group">
-            <label htmlFor="password">Password:</label>
+            <label htmlFor="password">{t('auth.password')}:</label>
             <input
               id="password"
               type="password"
               value={password}
               onChange={handlePasswordChange}
               required
-              placeholder="Enter your password"
+              placeholder={t('auth.password')}
               autoComplete={isRegistering ? "new-password" : "current-password"}
               minLength={isRegistering ? "12" : undefined}
               disabled={loading}
-              aria-label="Password"
+              aria-label={t('auth.password')}
             />
             {isRegistering && passwordStrength && (
               <div className={`password-strength ${getPasswordStrengthClass()}`}>
                 Password strength: {passwordStrength}
                 {passwordStrength !== 'strong' && (
                   <div className="password-requirements">
-                    Must be at least 12 characters and include uppercase, lowercase, number, and special character (@$!%*?&).
+                    {t('auth.passwordMinLength')}
                   </div>
                 )}
               </div>
@@ -176,33 +178,33 @@ export default function Login({ onLogin }) {
           {isRegistering && (
             <>
               <div className="form-group">
-                <label htmlFor="confirmPassword">Confirm Password:</label>
+                <label htmlFor="confirmPassword">{t('auth.confirmPassword')}:</label>
                 <input
                   id="confirmPassword"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
-                  placeholder="Confirm your password"
+                  placeholder={t('auth.confirmPassword')}
                   autoComplete="new-password"
                   minLength="12"
                   disabled={loading}
-                  aria-label="Confirm password"
+                  aria-label={t('auth.confirmPassword')}
                 />
               </div>
               
               <div className="form-group">
-                <label htmlFor="role">Role:</label>
+                <label htmlFor="role">{t('auth.role')}:</label>
                 <select
                   id="role"
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
                   className="role-select"
                   disabled={loading}
-                  aria-label="Select role"
+                  aria-label={t('auth.role')}
                 >
-                  <option value="Customer">Customer</option>
-                  <option value="Seller">Seller</option>
+                  <option value="Customer">{t('auth.customer')}</option>
+                  <option value="Seller">{t('auth.seller')}</option>
                 </select>
               </div>
             </>
@@ -216,7 +218,7 @@ export default function Login({ onLogin }) {
             {loading ? (
               <span className="loading-spinner" aria-hidden="true"></span>
             ) : (
-              isRegistering ? 'Register' : 'Login'
+              isRegistering ? t('auth.registerButton') : t('auth.loginButton')
             )}
           </button>
         </form>
@@ -234,8 +236,8 @@ export default function Login({ onLogin }) {
             disabled={loading}
           >
             {isRegistering
-              ? 'Already have an account? Login'
-              : 'Need an account? Register'}
+              ? `${t('auth.alreadyHaveAccount')} ${t('auth.switchToLogin')}`
+              : `${t('auth.dontHaveAccount')} ${t('auth.switchToRegister')}`}
           </button>
         </div>
       </div>

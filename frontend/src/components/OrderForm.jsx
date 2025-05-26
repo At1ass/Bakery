@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import './OrderForm.css';
 
 export default function OrderForm({ orderItems, onSubmit, onClear }) {
+  const { t } = useTranslation();
   const [address, setAddress] = useState(() => {
     return localStorage.getItem('orderAddress') || '';
   });
@@ -88,7 +90,7 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
 
   return (
     <div className="order-form">
-      <h2>Your Order</h2>
+      <h2>{t('orderForm.title')}</h2>
       
       <div className="order-items">
         {orderItems.map((item, index) => (
@@ -101,7 +103,7 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
               <button 
                 onClick={() => updateQuantity(index, (item.quantity || 1) - 1)}
                 className="quantity-btn"
-                aria-label="Decrease quantity"
+                aria-label={t('orderForm.decreaseQuantity')}
               >
                 -
               </button>
@@ -109,14 +111,14 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
               <button 
                 onClick={() => updateQuantity(index, (item.quantity || 1) + 1)}
                 className="quantity-btn"
-                aria-label="Increase quantity"
+                aria-label={t('orderForm.increaseQuantity')}
               >
                 +
               </button>
               <button 
                 onClick={() => updateQuantity(index, 0)}
                 className="remove-item"
-                aria-label={`Remove ${item.name} from order`}
+                aria-label={t('orderForm.removeItem', { itemName: item.name })}
               >
                 ✕
               </button>
@@ -126,44 +128,44 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
       </div>
 
       <div className="order-total">
-        Total: ${calculateTotal()}
+        {t('orderForm.total')}: ${calculateTotal()}
       </div>
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="address">Delivery Address:</label>
+          <label htmlFor="address">{t('orderForm.deliveryAddress')}:</label>
           <textarea
             id="address"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             required
-            placeholder="Enter your delivery address (minimum 10 characters)"
+            placeholder={t('orderForm.deliveryAddressPlaceholder')}
             minLength={10}
             maxLength={200}
           />
         </div>
 
         <div className="form-group">
-          <label htmlFor="phone">Contact Phone:</label>
+          <label htmlFor="phone">{t('orderForm.contactPhone')}:</label>
           <input
             type="tel"
             id="phone"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             required
-            placeholder="Enter your phone number (e.g., +1234567890)"
+            placeholder={t('orderForm.phonePlaceholder')}
             pattern="^\+?1?\d{9,15}$"
-            title="Please enter a valid phone number (9-15 digits, optionally starting with + or +1)"
+            title={t('orderForm.phoneTitle')}
           />
         </div>
 
         <div className="form-group">
-          <label htmlFor="notes">Delivery Notes:</label>
+          <label htmlFor="notes">{t('orderForm.deliveryNotes')}:</label>
           <textarea
             id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Any special delivery instructions?"
+            placeholder={t('orderForm.deliveryNotesPlaceholder')}
             maxLength={200}
           />
         </div>
@@ -182,13 +184,13 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
             }}
             className="clear-order"
           >
-            Clear Order
+            {t('orderForm.clearOrder')}
           </button>
           <button 
             type="submit"
             className="place-order"
           >
-            Place Order
+            {t('orderForm.placeOrder')}
           </button>
         </div>
       </form>

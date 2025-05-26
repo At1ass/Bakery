@@ -1,6 +1,22 @@
 # Confectionery E-commerce Microservice System
 
-A secure, containerized microservice-based e-commerce platform for confectionery products.
+A secure, containerized microservice-based e-commerce platform for confectionery products with multi-language support.
+
+## 🌐 Internationalization (i18n)
+
+The application supports multiple languages:
+- **English** (default)
+- **Russian** (Русский)
+
+### Language Features
+- **Automatic Detection**: Uses browser language or saved preference
+- **Persistent Selection**: Language choice is saved in localStorage
+- **Complete Translation**: All UI elements, messages, and forms are translated
+- **Easy Switching**: Language switcher in the header for instant switching
+
+### Supported Languages
+- 🇺🇸 **English**: Complete interface in English
+- 🇷🇺 **Russian**: Полный интерфейс на русском языке
 
 ## 🚀 Quick Start
 

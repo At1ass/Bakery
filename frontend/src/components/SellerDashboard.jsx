@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createProduct, updateProduct, deleteProduct, fetchOrders } from '../api';
 import './SellerDashboard.css';
 
@@ -9,6 +10,7 @@ const VALID_CATEGORIES = [
 ];
 
 export default function SellerDashboard({ products = [], token, onProductsChange }) {
+  const { t } = useTranslation();
   const [orders, setOrders] = useState([]);
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -53,10 +55,10 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       })
       .catch(error => {
         console.error('Failed to fetch orders:', error);
-        setError('Failed to load orders');
+        setError(t('seller.errorLoadingOrders'));
         setTimeout(() => setError(''), 5000);
       });
-  }, [token]);
+  }, [token, t]);
 
   const handleAddTag = (isEditing = false) => {
     const currentTags = isEditing ? [...(editingProduct.tags || [])] : [...(newProduct.tags || [])];
@@ -66,14 +68,14 @@ export default function SellerDashboard({ products = [], token, onProductsChange
     
     // Validate tag format using regex (letters, numbers, and hyphens only)
     if (!/^[\w\-]+$/.test(newTag)) {
-      setError('Tags can only contain letters, numbers, and hyphens');
+      setError(t('validation.tagFormat'));
       setTimeout(() => setError(''), 5000);
       return;
     }
     
     // Check if tag already exists (case insensitive)
     if (currentTags.some(tag => tag.toLowerCase() === newTag.toLowerCase())) {
-      setError('This tag already exists');
+      setError(t('validation.tagExists'));
       setTimeout(() => setError(''), 5000);
       return;
     }
@@ -117,19 +119,19 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       // Validate price is a positive number
       const price = parseFloat(newProduct.price);
       if (isNaN(price) || price <= 0 || price >= 10000) {
-        setError('Price must be a positive number less than 10,000');
+        setError(t('validation.priceRange'));
         return;
       }
       
       // Validate name and description
       if (!newProduct.name.trim() || !newProduct.description.trim()) {
-        setError('Name and description are required');
+        setError(t('validation.nameDescRequired'));
         return;
       }
       
       // Ensure category is valid
       if (!VALID_CATEGORIES.includes(newProduct.category)) {
-        setError(`Category must be one of: ${VALID_CATEGORIES.join(', ')}`);
+        setError(t('validation.categoryInvalid', { categories: VALID_CATEGORIES.join(', ') }));
         return;
       }
 
@@ -161,12 +163,12 @@ export default function SellerDashboard({ products = [], token, onProductsChange
           is_available: true
         });
         setTagInput('');
-        setSuccessMessage('Product created successfully!');
+        setSuccessMessage(t('product.createdSuccess'));
         setTimeout(() => setSuccessMessage(''), 5000);
       }
     } catch (error) {
       console.error('Failed to create product:', error);
-      setError(error.response?.data?.detail || error.message || 'Failed to create product');
+      setError(error.response?.data?.detail || error.message || t('product.createError'));
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -182,19 +184,19 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       // Validate price is a positive number
       const price = parseFloat(editingProduct.price);
       if (isNaN(price) || price <= 0 || price >= 10000) {
-        setError('Price must be a positive number less than 10,000');
+        setError(t('validation.priceRange'));
         return;
       }
       
       // Validate name and description
       if (!editingProduct.name.trim() || !editingProduct.description.trim()) {
-        setError('Name and description are required');
+        setError(t('validation.nameDescRequired'));
         return;
       }
       
       // Ensure category is valid
       if (!VALID_CATEGORIES.includes(editingProduct.category)) {
-        setError(`Category must be one of: ${VALID_CATEGORIES.join(', ')}`);
+        setError(t('validation.categoryInvalid', { categories: VALID_CATEGORIES.join(', ') }));
         return;
       }
 
@@ -223,12 +225,12 @@ export default function SellerDashboard({ products = [], token, onProductsChange
         );
         onProductsChange(updatedProducts);
         setEditingProduct(null);
-        setSuccessMessage('Product updated successfully!');
+        setSuccessMessage(t('product.updatedSuccess'));
         setTimeout(() => setSuccessMessage(''), 5000);
       }
     } catch (error) {
       console.error('Failed to update product:', error);
-      setError(error.response?.data?.detail || error.message || 'Failed to update product');
+      setError(error.response?.data?.detail || error.message || t('product.updateError'));
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -236,11 +238,11 @@ export default function SellerDashboard({ products = [], token, onProductsChange
   const handleDeleteProduct = async (productId) => {
     if (!productId) {
       console.error('No product ID provided for deletion');
-      setError('Cannot delete product: Invalid ID');
+      setError(t('product.deleteInvalidId'));
       return;
     }
 
-    if (!window.confirm('Are you sure you want to delete this product?')) return;
+    if (!window.confirm(t('validation.deleteConfirm'))) return;
     
     setError('');
     setSuccessMessage('');
@@ -251,11 +253,11 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       const updatedProducts = displayProducts.filter(p => (p._id || p.id) !== productId);
       console.log('Updated products after deletion:', updatedProducts);
       onProductsChange(updatedProducts);
-      setSuccessMessage('Product deleted successfully!');
+      setSuccessMessage(t('product.deletedSuccess'));
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (error) {
       console.error('Failed to delete product:', error);
-      setError(error.response?.data?.detail || error.message || 'Failed to delete product');
+      setError(error.response?.data?.detail || error.message || t('product.deleteError'));
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -280,7 +282,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
 
   return (
     <div className="seller-dashboard">
-      <h2>Seller Dashboard</h2>
+      <h2>{t('seller.title')}</h2>
       
       {error && <div className="error-message" role="alert">{error}</div>}
       {successMessage && <div className="success-message" role="status">{successMessage}</div>}
@@ -288,37 +290,37 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       <section className="product-management">
         {!editingProduct ? (
           <>
-            <h3>Add New Product</h3>
+            <h3>{t('product.addNew')}</h3>
             <form onSubmit={handleCreateProduct} className="product-form">
               <div className="form-group">
-                <label htmlFor="productName">Name:</label>
+                <label htmlFor="productName">{t('product.name')}:</label>
                 <input
                   id="productName"
                   type="text"
                   value={newProduct.name}
                   onChange={e => setNewProduct({...newProduct, name: e.target.value})}
                   required
-                  placeholder="Product name"
+                  placeholder={t('product.name')}
                   minLength="1"
                   maxLength="100"
                 />
               </div>
               
               <div className="form-group">
-                <label htmlFor="productDescription">Description:</label>
+                <label htmlFor="productDescription">{t('product.description')}:</label>
                 <textarea
                   id="productDescription"
                   value={newProduct.description}
                   onChange={e => setNewProduct({...newProduct, description: e.target.value})}
                   required
-                  placeholder="Product description"
+                  placeholder={t('product.description')}
                   minLength="1"
                   maxLength="500"
                 />
               </div>
               
               <div className="form-group">
-                <label htmlFor="productPrice">Price:</label>
+                <label htmlFor="productPrice">{t('product.price')}:</label>
                 <input
                   id="productPrice"
                   type="number"
@@ -333,7 +335,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
               </div>
 
               <div className="form-group">
-                <label htmlFor="productCategory">Category:</label>
+                <label htmlFor="productCategory">{t('product.category')}:</label>
                 <select
                   id="productCategory"
                   value={newProduct.category}
@@ -347,7 +349,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
               </div>
               
               <div className="form-group">
-                <label htmlFor="productTags">Tags:</label>
+                <label htmlFor="productTags">{t('product.tags')}:</label>
                 <div className="tag-input-container">
                   <input
                     id="productTags"
@@ -355,7 +357,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                     value={tagInput}
                     onChange={e => setTagInput(e.target.value)}
                     onKeyPress={e => handleTagKeyPress(e, false)}
-                    placeholder="Add tag and press Enter"
+                    placeholder={t('product.addTag')}
                     maxLength="30"
                   />
                   <button 
@@ -363,7 +365,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                     onClick={() => handleAddTag(false)}
                     className="add-tag-btn"
                   >
-                    Add
+                    {t('product.addButton')}
                   </button>
                 </div>
                 {newProduct.tags.length > 0 && (
@@ -384,42 +386,42 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                 )}
               </div>
               
-              <button type="submit" className="submit-btn">Add Product</button>
+              <button type="submit" className="submit-btn">{t('product.addProduct')}</button>
             </form>
           </>
         ) : (
           <>
-            <h3>Edit Product</h3>
+            <h3>{t('product.edit')}</h3>
             <form onSubmit={handleUpdateProduct} className="product-form">
               <div className="form-group">
-                <label htmlFor="editProductName">Name:</label>
+                <label htmlFor="editProductName">{t('product.name')}:</label>
                 <input
                   id="editProductName"
                   type="text"
                   value={editingProduct.name}
                   onChange={e => setEditingProduct({...editingProduct, name: e.target.value})}
                   required
-                  placeholder="Product name"
+                  placeholder={t('product.name')}
                   minLength="1"
                   maxLength="100"
                 />
               </div>
               
               <div className="form-group">
-                <label htmlFor="editProductDescription">Description:</label>
+                <label htmlFor="editProductDescription">{t('product.description')}:</label>
                 <textarea
                   id="editProductDescription"
                   value={editingProduct.description}
                   onChange={e => setEditingProduct({...editingProduct, description: e.target.value})}
                   required
-                  placeholder="Product description"
+                  placeholder={t('product.description')}
                   minLength="1"
                   maxLength="500"
                 />
               </div>
               
               <div className="form-group">
-                <label htmlFor="editProductPrice">Price:</label>
+                <label htmlFor="editProductPrice">{t('product.price')}:</label>
                 <input
                   id="editProductPrice"
                   type="number"
@@ -434,7 +436,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
               </div>
 
               <div className="form-group">
-                <label htmlFor="editProductCategory">Category:</label>
+                <label htmlFor="editProductCategory">{t('product.category')}:</label>
                 <select
                   id="editProductCategory"
                   value={editingProduct.category || 'Other'}
@@ -448,7 +450,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
               </div>
               
               <div className="form-group">
-                <label htmlFor="editProductTags">Tags:</label>
+                <label htmlFor="editProductTags">{t('product.tags')}:</label>
                 <div className="tag-input-container">
                   <input
                     id="editProductTags"
@@ -456,7 +458,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                     value={editingTagInput}
                     onChange={e => setEditingTagInput(e.target.value)}
                     onKeyPress={e => handleTagKeyPress(e, true)}
-                    placeholder="Add tag and press Enter"
+                    placeholder={t('product.addTag')}
                     maxLength="30"
                   />
                   <button 
@@ -464,7 +466,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                     onClick={() => handleAddTag(true)}
                     className="add-tag-btn"
                   >
-                    Add
+                    {t('product.addButton')}
                   </button>
                 </div>
                 {editingProduct.tags?.length > 0 && (
@@ -493,13 +495,13 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                     checked={editingProduct.is_available !== undefined ? editingProduct.is_available : true}
                     onChange={e => setEditingProduct({...editingProduct, is_available: e.target.checked})}
                   />
-                  Available for purchase
+                  {t('product.available')}
                 </label>
               </div>
               
               <div className="form-actions">
-                <button type="button" onClick={cancelEditing} className="cancel-btn">Cancel</button>
-                <button type="submit" className="submit-btn">Update Product</button>
+                <button type="button" onClick={cancelEditing} className="cancel-btn">{t('product.cancel')}</button>
+                <button type="submit" className="submit-btn">{t('product.updateProduct')}</button>
               </div>
             </form>
           </>
@@ -507,17 +509,17 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       </section>
 
       <section className="product-list">
-        <h3>Current Products</h3>
+        <h3>{t('product.currentProducts')}</h3>
         <div className="table-container">
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Description</th>
-                <th>Category</th>
-                <th>Price</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th>{t('product.name')}</th>
+                <th>{t('product.description')}</th>
+                <th>{t('product.category')}</th>
+                <th>{t('product.price')}</th>
+                <th>{t('product.status')}</th>
+                <th>{t('product.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -529,21 +531,21 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                     <td>{product.description}</td>
                     <td>{product.category || 'Other'}</td>
                     <td>${parseFloat(product.price).toFixed(2)}</td>
-                    <td>{product.is_available !== false ? 'Available' : 'Out of Stock'}</td>
+                    <td>{product.is_available !== false ? t('product.available') : t('product.outOfStock')}</td>
                     <td>
                       <button 
                         onClick={() => startEditingProduct(product)} 
                         className="edit-btn"
-                        aria-label={`Edit ${product.name}`}
+                        aria-label={`${t('product.edit')} ${product.name}`}
                       >
-                        Edit
+                        {t('product.edit')}
                       </button>
                       <button 
                         onClick={() => handleDeleteProduct(id)} 
                         className="delete-btn"
-                        aria-label={`Delete ${product.name}`}
+                        aria-label={`${t('product.delete')} ${product.name}`}
                       >
-                        Delete
+                        {t('product.delete')}
                       </button>
                     </td>
                   </tr>
@@ -555,20 +557,20 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       </section>
 
       <section className="orders">
-        <h3>Recent Orders</h3>
+        <h3>{t('orders.recent')}</h3>
         {orders.length === 0 ? (
-          <p>No orders yet.</p>
+          <p>{t('orders.noOrdersYet')}</p>
         ) : (
           <div className="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>Order ID</th>
-                  <th>Customer</th>
-                  <th>Date</th>
-                  <th>Items</th>
-                  <th>Total</th>
-                  <th>Status</th>
+                  <th>{t('orders.orderId')}</th>
+                  <th>{t('orders.customer')}</th>
+                  <th>{t('orders.date')}</th>
+                  <th>{t('orders.items')}</th>
+                  <th>{t('orders.total')}</th>
+                  <th>{t('orders.orderStatus')}</th>
                 </tr>
               </thead>
               <tbody>
