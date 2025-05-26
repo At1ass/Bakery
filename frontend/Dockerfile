@@ -25,13 +25,6 @@ FROM nginx:stable-alpine
 # Install envsubst for environment variable substitution
 RUN apk add --no-cache gettext
 
-# Create SSL directory
-RUN mkdir -p /etc/nginx/ssl
-
-# Copy locally generated mkcert certificates
-COPY localhost+2.pem /etc/nginx/ssl/cert.pem
-COPY localhost+2-key.pem /etc/nginx/ssl/key.pem
-
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
@@ -43,7 +36,7 @@ COPY entrypoint.sh /
 RUN chmod +x /entrypoint.sh
 
 # Expose port
-EXPOSE 3001 3002
+EXPOSE 3001
 
 # Run entrypoint script
 CMD ["/entrypoint.sh"]

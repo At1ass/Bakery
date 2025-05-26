@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import './OrderForm.css';
 
 export default function OrderForm({ orderItems, onSubmit, onClear }) {
-  const { t } = useTranslation();
   const [address, setAddress] = useState(() => {
     return localStorage.getItem('orderAddress') || '';
   });
@@ -60,7 +58,7 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
     
     // Validate address length
     if (address.trim().length < 10) {
-      alert(t('orderForm.addressTooShort') || 'Delivery address must be at least 10 characters long');
+      alert('Адрес доставки должен содержать не менее 10 символов');
       return;
     }
     
@@ -104,20 +102,20 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
 
   return (
     <div className="order-form">
-      <h2>{t('orderForm.title')}</h2>
+      <h2>Ваш заказ</h2>
       
       <div className="order-items">
         {orderItems.map((item, index) => (
           <div key={index} className="order-item">
             <div className="item-details">
               <span className="item-name">{item.name}</span>
-              <span className="item-price">${parseFloat(item.price).toFixed(2)} each</span>
+              <span className="item-price">${parseFloat(item.price).toFixed(2)} за штуку</span>
             </div>
             <div className="quantity-controls">
               <button 
                 onClick={() => updateQuantity(index, (item.quantity || 1) - 1)}
                 className="quantity-btn"
-                aria-label={t('orderForm.decreaseQuantity')}
+                aria-label="Уменьшить количество"
               >
                 -
               </button>
@@ -125,14 +123,14 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
               <button 
                 onClick={() => updateQuantity(index, (item.quantity || 1) + 1)}
                 className="quantity-btn"
-                aria-label={t('orderForm.increaseQuantity')}
+                aria-label="Увеличить количество"
               >
                 +
               </button>
               <button 
                 onClick={() => updateQuantity(index, 0)}
                 className="remove-item"
-                aria-label={t('orderForm.removeItem', { itemName: item.name })}
+                aria-label={`Удалить ${item.name} из заказа`}
               >
                 ✕
               </button>
@@ -142,43 +140,43 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
       </div>
 
       <div className="order-total">
-        {t('orderForm.total')}: ${calculateTotal()}
+        Итого: ${calculateTotal()}
       </div>
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="address">{t('orderForm.deliveryAddress')}:</label>
+          <label htmlFor="address">Адрес доставки:</label>
           <textarea
             id="address"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             required
-            placeholder={t('orderForm.deliveryAddressPlaceholder')}
+            placeholder="Введите ваш адрес доставки (минимум 10 символов)"
             maxLength={200}
           />
         </div>
 
         <div className="form-group">
-          <label htmlFor="phone">{t('orderForm.contactPhone')}:</label>
+          <label htmlFor="phone">Контактный телефон:</label>
           <input
             type="tel"
             id="phone"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             required
-            placeholder={t('orderForm.phonePlaceholder')}
+            placeholder="Введите ваш номер телефона (например, +1234567890)"
             pattern="^\+?1?\d{9,15}$"
-            title={t('orderForm.phoneTitle')}
+            title="Пожалуйста, введите действительный номер телефона (9-15 цифр, опционально начинающийся с + или +1)"
           />
         </div>
 
         <div className="form-group">
-          <label htmlFor="notes">{t('orderForm.deliveryNotes')}:</label>
+          <label htmlFor="notes">Примечания к доставке:</label>
           <textarea
             id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder={t('orderForm.deliveryNotesPlaceholder')}
+            placeholder="Особые инструкции по доставке?"
             maxLength={200}
           />
         </div>
@@ -192,13 +190,13 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
             }}
             className="clear-order"
           >
-            {t('orderForm.clearOrder')}
+            Очистить заказ
           </button>
           <button 
             type="submit"
             className="place-order"
           >
-            {t('orderForm.placeOrder')}
+            Оформить заказ
           </button>
         </div>
       </form>

@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { login, register } from '../api';
 import './Login.css';
 
 export default function Login({ onLogin }) {
-  const { t } = useTranslation();
   const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,28 +35,28 @@ export default function Login({ onLogin }) {
 
   const validateForm = () => {
     if (!email || !password) {
-      setError(t('validation.required'));
+      setError('Это поле обязательно');
       return false;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError(t('validation.email'));
+      setError('Пожалуйста, введите действительный адрес электронной почты');
       return false;
     }
 
     if (isRegistering) {
       if (password !== confirmPassword) {
-        setError('Passwords do not match.');
+        setError('Пароли не совпадают.');
         return false;
       }
 
       if (password.length < 12) {
-        setError(t('auth.passwordMinLength'));
+        setError('Пароль должен содержать не менее 12 символов');
         return false;
       }
 
       if (!(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$/.test(password))) {
-        setError('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&).');
+        setError('Пароль должен содержать хотя бы одну заглавную букву, одну строчную букву, одну цифру и один специальный символ (@$!%*?&).');
         return false;
       }
     }
@@ -98,15 +96,15 @@ export default function Login({ onLogin }) {
       
       // Handle specific error cases
       if (error.response?.status === 401) {
-        setError(t('auth.loginError'));
+        setError('Ошибка входа. Проверьте ваши данные.');
       } else if (error.response?.status === 422) {
-        setError(t('error.validationError'));
+        setError('Ошибка валидации. Проверьте ваши данные.');
       } else if (error.response?.status === 409 && isRegistering) {
-        setError('This email is already registered. Please try logging in instead.');
+        setError('Этот email уже зарегистрирован. Попробуйте войти.');
       } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
-        setError(t('error.networkError'));
+        setError('Ошибка сети. Проверьте подключение к интернету.');
       } else {
-        setError(error.response?.data?.detail || error.message || t('error.unknownError'));
+        setError(error.response?.data?.detail || error.message || 'Произошла неизвестная ошибка.');
       }
     } finally {
       setLoading(false);
@@ -129,45 +127,45 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-container">
       <form onSubmit={handleSubmit} className="login-form">
-        <h2>{isRegistering ? t('auth.register') : t('auth.login')}</h2>
+        <h2>{isRegistering ? 'Регистрация' : 'Вход'}</h2>
         
         {error && <div className="error-message" role="alert">{error}</div>}
         
         <div className="form-group">
-          <label htmlFor="email">{t('auth.email')}:</label>
+          <label htmlFor="email">Электронная почта:</label>
           <input
             id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            placeholder={t('auth.email')}
+            placeholder="Электронная почта"
             autoComplete="email"
             disabled={loading}
-            aria-label={t('auth.email')}
+            aria-label="Электронная почта"
           />
         </div>
         
         <div className="form-group">
-          <label htmlFor="password">{t('auth.password')}:</label>
+          <label htmlFor="password">Пароль:</label>
           <input
             id="password"
             type="password"
             value={password}
             onChange={handlePasswordChange}
             required
-            placeholder={t('auth.password')}
+            placeholder="Пароль"
             autoComplete={isRegistering ? "new-password" : "current-password"}
             minLength={isRegistering ? "12" : undefined}
             disabled={loading}
-            aria-label={t('auth.password')}
+            aria-label="Пароль"
           />
           {isRegistering && passwordStrength && (
             <div className={`password-strength ${getPasswordStrengthClass()}`}>
-              Password strength: {passwordStrength}
+              Сила пароля: {passwordStrength}
               {passwordStrength !== 'strong' && (
                 <div className="password-requirements">
-                  {t('auth.passwordMinLength')}
+                  Пароль должен содержать не менее 12 символов
                 </div>
               )}
             </div>
@@ -177,33 +175,33 @@ export default function Login({ onLogin }) {
         {isRegistering && (
           <>
             <div className="form-group">
-              <label htmlFor="confirmPassword">{t('auth.confirmPassword')}:</label>
+              <label htmlFor="confirmPassword">Подтвердите пароль:</label>
               <input
                 id="confirmPassword"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                placeholder={t('auth.confirmPassword')}
+                placeholder="Подтвердите пароль"
                 autoComplete="new-password"
                 minLength="12"
                 disabled={loading}
-                aria-label={t('auth.confirmPassword')}
+                aria-label="Подтвердите пароль"
               />
             </div>
             
             <div className="form-group">
-              <label htmlFor="role">{t('auth.role')}:</label>
+              <label htmlFor="role">Роль:</label>
               <select
                 id="role"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="role-select"
+                required
                 disabled={loading}
-                aria-label={t('auth.role')}
+                aria-label="Роль"
               >
-                <option value="Customer">{t('auth.customer')}</option>
-                <option value="Seller">{t('auth.seller')}</option>
+                <option value="Customer">Покупатель</option>
+                <option value="Seller">Продавец</option>
               </select>
             </div>
           </>
@@ -211,33 +209,31 @@ export default function Login({ onLogin }) {
         
         <button 
           type="submit" 
-          className={`submit-btn ${loading ? 'loading' : ''}`}
+          className="submit-btn"
           disabled={loading}
+          aria-label={isRegistering ? 'Зарегистрироваться' : 'Войти'}
         >
-          {loading ? (
-            <span className="loading-spinner" aria-hidden="true"></span>
-          ) : (
-            isRegistering ? t('auth.registerButton') : t('auth.loginButton')
-          )}
+          {loading ? 'Загрузка...' : (isRegistering ? 'Зарегистрироваться' : 'Войти')}
         </button>
         
-        <div className="form-switch">
-          <button
-            type="button"
-            onClick={() => {
-              console.log('Register/Login toggle clicked!', { isRegistering });
-              setIsRegistering(!isRegistering);
-              setError('');
-              setPassword('');
-              setConfirmPassword('');
-              setPasswordStrength('');
-            }}
-            disabled={loading}
-          >
-            {isRegistering
-              ? `${t('auth.alreadyHaveAccount')} ${t('auth.switchToLogin')}`
-              : `${t('auth.dontHaveAccount')} ${t('auth.switchToRegister')}`}
-          </button>
+        <div className="auth-switch">
+          <p>
+            {isRegistering ? 'Уже есть аккаунт?' : 'Нет аккаунта?'}
+            <button
+              type="button"
+              className="switch-btn"
+              onClick={() => {
+                setIsRegistering(!isRegistering);
+                setError('');
+                setPassword('');
+                setConfirmPassword('');
+                setPasswordStrength('');
+              }}
+              disabled={loading}
+            >
+              {isRegistering ? 'Войти здесь' : 'Зарегистрироваться здесь'}
+            </button>
+          </p>
         </div>
       </form>
     </div>

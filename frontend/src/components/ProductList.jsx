@@ -1,23 +1,21 @@
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import './ProductList.css';
 
 export default function ProductList({ products, onAddToOrder }) {
-  const { t } = useTranslation();
   console.log('ProductList received products:', products);
   
   if (!products || !products.length) {
     console.log('No products to display');
     return (
       <div className="no-products">
-        {t('products.noProducts')}
+        Товары отсутствуют
       </div>
     );
   }
 
   return (
     <div className="product-list">
-      <h2>{t('products.title')}</h2>
+      <h2>Пекарня</h2>
       <div className="products-grid">
         {products.map((product) => {
           // Handle different product ID formats
@@ -40,9 +38,9 @@ export default function ProductList({ products, onAddToOrder }) {
                   onClick={() => onAddToOrder(product)}
                   className={`add-to-order ${!isAvailable ? 'disabled' : ''}`}
                   disabled={!isAvailable}
-                  aria-label={`${t('products.addToCart')} ${product.name}`}
+                  aria-label={`Добавить в заказ ${product.name}`}
                 >
-                  {isAvailable ? t('products.addToCart') : t('products.outOfStock')}
+                  {isAvailable ? 'Добавить в заказ' : 'Нет в наличии'}
                 </button>
               </div>
             </div>

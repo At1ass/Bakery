@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { createProduct, updateProduct, deleteProduct, fetchOrders } from '../api';
 import './SellerDashboard.css';
 
@@ -10,7 +9,6 @@ const VALID_CATEGORIES = [
 ];
 
 export default function SellerDashboard({ products = [], token, onProductsChange }) {
-  const { t } = useTranslation();
   const [orders, setOrders] = useState([]);
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -63,11 +61,11 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       .catch(error => {
         console.error('Failed to fetch orders:', error);
         console.error('Error details:', error.response?.data);
-        setError(t('seller.errorLoadingOrders') + ': ' + (error.response?.data?.detail || error.message));
+        setError('Не удалось загрузить заказы: ' + (error.response?.data?.detail || error.message));
         setTimeout(() => setError(''), 5000);
         setOrders([]); // Set empty array on error
       });
-  }, [token, t]);
+  }, [token]);
 
   const handleAddTag = (isEditing = false) => {
     const currentTags = isEditing ? [...(editingProduct.tags || [])] : [...(newProduct.tags || [])];
@@ -77,14 +75,14 @@ export default function SellerDashboard({ products = [], token, onProductsChange
     
     // Validate tag format using regex (letters, numbers, and hyphens only)
     if (!/^[\w\-]+$/.test(newTag)) {
-      setError(t('validation.tagFormat'));
+      setError('Теги могут содержать только буквы, цифры и дефисы');
       setTimeout(() => setError(''), 5000);
       return;
     }
     
     // Check if tag already exists (case insensitive)
     if (currentTags.some(tag => tag.toLowerCase() === newTag.toLowerCase())) {
-      setError(t('validation.tagExists'));
+      setError('Этот тег уже существует');
       setTimeout(() => setError(''), 5000);
       return;
     }
@@ -128,19 +126,19 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       // Validate price is a positive number
       const price = parseFloat(newProduct.price);
       if (isNaN(price) || price <= 0 || price >= 10000) {
-        setError(t('validation.priceRange'));
+        setError('Цена должна быть положительным числом менее 10,000');
         return;
       }
       
       // Validate name and description
       if (!newProduct.name.trim() || !newProduct.description.trim()) {
-        setError(t('validation.nameDescRequired'));
+        setError('Название и описание обязательны');
         return;
       }
       
       // Ensure category is valid
       if (!VALID_CATEGORIES.includes(newProduct.category)) {
-        setError(t('validation.categoryInvalid', { categories: VALID_CATEGORIES.join(', ') }));
+        setError(`Категория должна быть одной из: ${VALID_CATEGORIES.join(', ')}`);
         return;
       }
 
@@ -173,12 +171,12 @@ export default function SellerDashboard({ products = [], token, onProductsChange
           is_available: true
         });
         setTagInput('');
-        setSuccessMessage(t('product.createdSuccess'));
+        setSuccessMessage('Товар успешно создан!');
         setTimeout(() => setSuccessMessage(''), 5000);
       }
     } catch (error) {
       console.error('Failed to create product:', error);
-      setError(error.response?.data?.detail || error.message || t('product.createError'));
+      setError(error.response?.data?.detail || error.message || 'Не удалось создать товар');
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -194,19 +192,19 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       // Validate price is a positive number
       const price = parseFloat(editingProduct.price);
       if (isNaN(price) || price <= 0 || price >= 10000) {
-        setError(t('validation.priceRange'));
+        setError('Цена должна быть положительным числом менее 10,000');
         return;
       }
       
       // Validate name and description
       if (!editingProduct.name.trim() || !editingProduct.description.trim()) {
-        setError(t('validation.nameDescRequired'));
+        setError('Название и описание обязательны');
         return;
       }
       
       // Ensure category is valid
       if (!VALID_CATEGORIES.includes(editingProduct.category)) {
-        setError(t('validation.categoryInvalid', { categories: VALID_CATEGORIES.join(', ') }));
+        setError(`Категория должна быть одной из: ${VALID_CATEGORIES.join(', ')}`);
         return;
       }
 
@@ -236,12 +234,12 @@ export default function SellerDashboard({ products = [], token, onProductsChange
         );
         onProductsChange(updatedProducts);
         setEditingProduct(null);
-        setSuccessMessage(t('product.updatedSuccess'));
+        setSuccessMessage('Товар успешно обновлен!');
         setTimeout(() => setSuccessMessage(''), 5000);
       }
     } catch (error) {
       console.error('Failed to update product:', error);
-      setError(error.response?.data?.detail || error.message || t('product.updateError'));
+      setError(error.response?.data?.detail || error.message || 'Не удалось обновить товар');
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -249,11 +247,11 @@ export default function SellerDashboard({ products = [], token, onProductsChange
   const handleDeleteProduct = async (productId) => {
     if (!productId) {
       console.error('No product ID provided for deletion');
-      setError(t('product.deleteInvalidId'));
+      setError('Неверный ID товара');
       return;
     }
 
-    if (!window.confirm(t('validation.deleteConfirm'))) return;
+    if (!window.confirm('Вы уверены, что хотите удалить этот товар?')) return;
     
     setError('');
     setSuccessMessage('');
@@ -264,11 +262,11 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       const updatedProducts = displayProducts.filter(p => (p._id || p.id) !== productId);
       console.log('Updated products after deletion:', updatedProducts);
       onProductsChange(updatedProducts);
-      setSuccessMessage(t('product.deletedSuccess'));
+      setSuccessMessage('Товар успешно удален!');
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (error) {
       console.error('Failed to delete product:', error);
-      setError(error.response?.data?.detail || error.message || t('product.deleteError'));
+      setError(error.response?.data?.detail || error.message || 'Не удалось удалить товар');
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -293,7 +291,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
 
   return (
     <div className="seller-dashboard">
-      <h2>{t('seller.title')}</h2>
+      <h2>Панель управления продавцом</h2>
       
       {error && <div className="error-message" role="alert">{error}</div>}
       {successMessage && <div className="success-message" role="status">{successMessage}</div>}
@@ -301,37 +299,37 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       <section className="product-management">
         {!editingProduct ? (
           <>
-            <h3>{t('product.addNew')}</h3>
+            <h3>Добавить новый товар</h3>
             <form onSubmit={handleCreateProduct} className="product-form">
               <div className="form-group">
-                <label htmlFor="productName">{t('product.name')}:</label>
+                <label htmlFor="productName">Название товара:</label>
                 <input
                   id="productName"
                   type="text"
                   value={newProduct.name}
                   onChange={e => setNewProduct({...newProduct, name: e.target.value})}
                   required
-                  placeholder={t('product.name')}
+                  placeholder="Название товара"
                   minLength="1"
                   maxLength="100"
                 />
               </div>
               
               <div className="form-group">
-                <label htmlFor="productDescription">{t('product.description')}:</label>
+                <label htmlFor="productDescription">Описание товара:</label>
                 <textarea
                   id="productDescription"
                   value={newProduct.description}
                   onChange={e => setNewProduct({...newProduct, description: e.target.value})}
                   required
-                  placeholder={t('product.description')}
+                  placeholder="Описание товара"
                   minLength="1"
                   maxLength="500"
                 />
               </div>
               
               <div className="form-group">
-                <label htmlFor="productPrice">{t('product.price')}:</label>
+                <label htmlFor="productPrice">Цена товара:</label>
                 <input
                   id="productPrice"
                   type="number"
@@ -341,12 +339,12 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                   value={newProduct.price}
                   onChange={e => setNewProduct({...newProduct, price: e.target.value})}
                   required
-                  placeholder="0.00"
+                  placeholder="Цена"
                 />
               </div>
 
               <div className="form-group">
-                <label htmlFor="productCategory">{t('product.category')}:</label>
+                <label htmlFor="productCategory">Категория товара:</label>
                 <select
                   id="productCategory"
                   value={newProduct.category}
@@ -360,7 +358,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
               </div>
               
               <div className="form-group">
-                <label htmlFor="productTags">{t('product.tags')}:</label>
+                <label htmlFor="productTags">Теги товара:</label>
                 <div className="tag-input-container">
                   <input
                     id="productTags"
@@ -368,7 +366,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                     value={tagInput}
                     onChange={e => setTagInput(e.target.value)}
                     onKeyPress={e => handleTagKeyPress(e, false)}
-                    placeholder={t('product.addTag')}
+                    placeholder="Добавить тег"
                     maxLength="30"
                   />
                   <button 
@@ -376,7 +374,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                     onClick={() => handleAddTag(false)}
                     className="add-tag-btn"
                   >
-                    {t('product.addButton')}
+                    Добавить тег
                   </button>
                 </div>
                 {newProduct.tags.length > 0 && (
@@ -397,42 +395,42 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                 )}
               </div>
               
-              <button type="submit" className="submit-btn">{t('product.addProduct')}</button>
+              <button type="submit" className="submit-btn">Добавить товар</button>
             </form>
           </>
         ) : (
           <>
-            <h3>{t('product.edit')}</h3>
+            <h3>Редактировать товар</h3>
             <form onSubmit={handleUpdateProduct} className="product-form">
               <div className="form-group">
-                <label htmlFor="editProductName">{t('product.name')}:</label>
+                <label htmlFor="editProductName">Название товара:</label>
                 <input
                   id="editProductName"
                   type="text"
                   value={editingProduct.name}
                   onChange={e => setEditingProduct({...editingProduct, name: e.target.value})}
                   required
-                  placeholder={t('product.name')}
+                  placeholder="Название товара"
                   minLength="1"
                   maxLength="100"
                 />
               </div>
               
               <div className="form-group">
-                <label htmlFor="editProductDescription">{t('product.description')}:</label>
+                <label htmlFor="editProductDescription">Описание товара:</label>
                 <textarea
                   id="editProductDescription"
                   value={editingProduct.description}
                   onChange={e => setEditingProduct({...editingProduct, description: e.target.value})}
                   required
-                  placeholder={t('product.description')}
+                  placeholder="Описание товара"
                   minLength="1"
                   maxLength="500"
                 />
               </div>
               
               <div className="form-group">
-                <label htmlFor="editProductPrice">{t('product.price')}:</label>
+                <label htmlFor="editProductPrice">Цена товара:</label>
                 <input
                   id="editProductPrice"
                   type="number"
@@ -442,12 +440,12 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                   value={editingProduct.price}
                   onChange={e => setEditingProduct({...editingProduct, price: e.target.value})}
                   required
-                  placeholder="0.00"
+                  placeholder="Цена"
                 />
               </div>
 
               <div className="form-group">
-                <label htmlFor="editProductCategory">{t('product.category')}:</label>
+                <label htmlFor="editProductCategory">Категория товара:</label>
                 <select
                   id="editProductCategory"
                   value={editingProduct.category || 'Other'}
@@ -461,7 +459,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
               </div>
               
               <div className="form-group">
-                <label htmlFor="editProductTags">{t('product.tags')}:</label>
+                <label htmlFor="editProductTags">Теги товара:</label>
                 <div className="tag-input-container">
                   <input
                     id="editProductTags"
@@ -469,7 +467,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                     value={editingTagInput}
                     onChange={e => setEditingTagInput(e.target.value)}
                     onKeyPress={e => handleTagKeyPress(e, true)}
-                    placeholder={t('product.addTag')}
+                    placeholder="Добавить тег"
                     maxLength="30"
                   />
                   <button 
@@ -477,7 +475,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                     onClick={() => handleAddTag(true)}
                     className="add-tag-btn"
                   >
-                    {t('product.addButton')}
+                    Добавить тег
                   </button>
                 </div>
                 {editingProduct.tags?.length > 0 && (
@@ -506,13 +504,13 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                     checked={editingProduct.is_available !== undefined ? editingProduct.is_available : true}
                     onChange={e => setEditingProduct({...editingProduct, is_available: e.target.checked})}
                   />
-                  {t('product.available')}
+                  Доступен
                 </label>
               </div>
               
               <div className="form-actions">
-                <button type="button" onClick={cancelEditing} className="cancel-btn">{t('product.cancel')}</button>
-                <button type="submit" className="submit-btn">{t('product.updateProduct')}</button>
+                <button type="button" onClick={cancelEditing} className="cancel-btn">Отмена</button>
+                <button type="submit" className="submit-btn">Обновить товар</button>
               </div>
             </form>
           </>
@@ -520,17 +518,17 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       </section>
 
       <section className="product-list">
-        <h3>{t('product.currentProducts')}</h3>
+        <h3>Текущие товары</h3>
         <div className="table-container">
           <table>
             <thead>
               <tr>
-                <th>{t('product.name')}</th>
-                <th>{t('product.description')}</th>
-                <th>{t('product.category')}</th>
-                <th>{t('product.price')}</th>
-                <th>{t('product.status')}</th>
-                <th>{t('product.actions')}</th>
+                <th>Название</th>
+                <th>Описание</th>
+                <th>Категория</th>
+                <th>Цена</th>
+                <th>Статус</th>
+                <th>Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -542,21 +540,21 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                     <td>{product.description}</td>
                     <td>{product.category || 'Other'}</td>
                     <td>${parseFloat(product.price).toFixed(2)}</td>
-                    <td>{product.is_available !== false ? t('product.available') : t('product.outOfStock')}</td>
+                    <td>{product.is_available !== false ? 'Доступен' : 'Нет в наличии'}</td>
                     <td>
                       <button 
                         onClick={() => startEditingProduct(product)} 
                         className="edit-btn"
-                        aria-label={`${t('product.edit')} ${product.name}`}
+                        aria-label={`Редактировать ${product.name}`}
                       >
-                        {t('product.edit')}
+                        Редактировать
                       </button>
                       <button 
                         onClick={() => handleDeleteProduct(id)} 
                         className="delete-btn"
-                        aria-label={`${t('product.delete')} ${product.name}`}
+                        aria-label={`Удалить ${product.name}`}
                       >
-                        {t('product.delete')}
+                        Удалить
                       </button>
                     </td>
                   </tr>
@@ -568,20 +566,20 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       </section>
 
       <section className="orders">
-        <h3>{t('orders.recent')}</h3>
+        <h3>Последние заказы</h3>
         {orders.length === 0 ? (
-          <p>{t('orders.noOrdersYet')}</p>
+          <p>Пока нет заказов</p>
         ) : (
           <div className="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>{t('orders.orderId')}</th>
-                  <th>{t('orders.customer')}</th>
-                  <th>{t('orders.date')}</th>
-                  <th>{t('orders.items')}</th>
-                  <th>{t('orders.total')}</th>
-                  <th>{t('orders.orderStatus')}</th>
+                  <th>ID заказа</th>
+                  <th>Покупатель</th>
+                  <th>Дата</th>
+                  <th>Товары</th>
+                  <th>Сумма</th>
+                  <th>Статус заказа</th>
                 </tr>
               </thead>
               <tbody>

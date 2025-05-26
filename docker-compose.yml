@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mongo:
     image: mongo:6.0
@@ -135,7 +133,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3001:3001"
-      - "3002:3002"
     environment:
       NODE_ENV: production
       AUTH_API_URL: http://localhost:8001

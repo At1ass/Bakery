@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { useTranslation } from 'react-i18next';
 import { login, fetchProducts, createOrder, getCurrentUser, refreshToken } from './api.js';
 import Login from './components/Login.jsx';
 import ProductList from './components/ProductList.jsx';
 import OrderForm from './components/OrderForm.jsx';
 import SellerDashboard from './components/SellerDashboard.jsx';
-import LanguageSwitcher from './components/LanguageSwitcher.jsx';
-import './i18n'; // Initialize i18n
 import './App.css';
 
 // Read from environment variables with fallback
@@ -29,7 +26,6 @@ function LoadingSpinner() {
 }
 
 export default function App() {
-  const { t } = useTranslation();
   const [token, setToken] = useState(() => localStorage.getItem('token') || '');
   const [user, setUser] = useState(null);
   const [products, setProducts] = useState([]);
@@ -320,14 +316,13 @@ export default function App() {
     >
       <div className="app" onClick={handleUserActivity}>
         <header className="app-header">
-          <h1>{t('products.title')}</h1>
+          <h1>Products</h1>
           <div className="header-controls">
-            <LanguageSwitcher />
             {user && (
               <div className="user-info">
                 Welcome, {user.email}
                 <button onClick={handleLogout} className="logout-btn">
-                  {t('nav.logout')}
+                  Logout
                 </button>
               </div>
             )}

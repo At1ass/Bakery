@@ -16,42 +16,63 @@ A modern, multilingual e-commerce platform for confectionery businesses built wi
 
 ## 🚀 Quick Start
 
-### Automatic Installation
+### Automated Installation (Recommended)
 
-We provide automated installation scripts for all major platforms:
-
-#### 🐧 Linux (Arch/Debian/RPM-based)
-
+**New HTTP-Only Installation (Simplified):**
 ```bash
-# Make the script executable
-chmod +x install.sh
+chmod +x install-simple.sh
+./install-simple.sh
+```
 
-# Run the installer
+**Original Installation (includes SSL setup):**
+```bash
+chmod +x install.sh
 ./install.sh
 ```
 
-#### 🪟 Windows
+The application will be available at:
+- **Frontend**: http://localhost:3001 (HTTP-only version)
+- **API Endpoints**: 
+  - Auth: http://localhost:8001
+  - Catalog: http://localhost:8002  
+  - Orders: http://localhost:8003
 
-**Option 1: Using PowerShell (Recommended)**
-```powershell
-# Run PowerShell as Administrator, then:
-.\install.ps1
-```
+### Manual Installation
 
-**Option 2: Using Batch File**
-```cmd
-# Right-click install.bat and select "Run as administrator"
-install.bat
-```
+1. **Install Docker and Docker Compose**
+2. **Clone and run**:
+   ```bash
+   git clone <repository-url>
+   cd mimikurs
+   docker-compose up --build -d
+   ```
 
-### What the installer does:
+## 📋 Prerequisites
 
-1. **Detects your operating system** and installs appropriate packages
-2. **Installs Docker** and Docker Compose if not present
-3. **Installs mkcert** for SSL certificate generation
-4. **Generates SSL certificates** for localhost
-5. **Builds and starts** all microservices
-6. **Provides access URLs** and default credentials
+- **Docker** and **Docker Compose**
+- **Linux/macOS/Windows** with WSL2
+- **4GB RAM** minimum
+- **2GB free disk space**
+
+## 🔧 Installation Details
+
+### Automated Scripts
+
+We provide multiple installation scripts:
+
+1. **`install-simple.sh`** - HTTP-only version (recommended for development)
+   - Installs Docker and dependencies
+   - Runs the application on HTTP only
+   - No SSL certificate generation
+
+2. **`install.sh`** - Full version with SSL support
+   - Installs Docker, dependencies, and mkcert
+   - Generates SSL certificates
+   - Supports both HTTP and HTTPS
+
+3. **Platform-specific scripts**:
+   - `install.ps1` - Windows PowerShell
+   - `install.bat` - Windows Batch
 
 ## 🛠️ Manual Installation
 
