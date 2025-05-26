@@ -425,6 +425,40 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         logger.error(f"User retrieval failed: {e}")
         raise credentials_exception
 
+@app.get('/users/{user_id}', response_model=UserOut)
+async def get_user_by_id(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Get user details by ID (for internal service communication)"""
+    try:
+        # Only allow sellers and admins to access other user details
+        if current_user.get('role') not in ['Seller', 'Admin']:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied"
+            )
+        
+        user = await users_collection.find_one({'_id': ObjectId(user_id)})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        return UserOut(
+            id=str(user['_id']),
+            email=user['email'],
+            role=user['role'],
+            created_at=user.get('created_at'),
+            last_login=user.get('last_login')
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"User retrieval failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not retrieve user details"
+        )
+
 @app.get('/me', response_model=UserOut)
 async def get_me(current_user: dict = Depends(get_current_user)):
     try:

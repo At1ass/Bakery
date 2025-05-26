@@ -224,7 +224,25 @@ export default function App() {
   }, [sessionTimeout]);
 
   const handleAddToOrder = useCallback((product) => {
-    setOrderItems(prevItems => [...prevItems, product]);
+    setOrderItems(prevItems => {
+      // Check if product already exists in order
+      const existingItemIndex = prevItems.findIndex(item => 
+        (item._id || item.id) === (product._id || product.id)
+      );
+      
+      if (existingItemIndex !== -1) {
+        // Product already exists, increase quantity
+        const updatedItems = [...prevItems];
+        updatedItems[existingItemIndex] = {
+          ...updatedItems[existingItemIndex],
+          quantity: (updatedItems[existingItemIndex].quantity || 1) + 1
+        };
+        return updatedItems;
+      } else {
+        // New product, add to order with quantity 1
+        return [...prevItems, { ...product, quantity: 1 }];
+      }
+    });
     setSuccessMessage('Product added to order');
     setTimeout(() => setSuccessMessage(''), 3000);
   }, []);

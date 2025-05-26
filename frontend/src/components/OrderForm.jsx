@@ -5,11 +5,14 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
   const [address, setAddress] = useState(() => {
     return localStorage.getItem('orderAddress') || '';
   });
+  const [phone, setPhone] = useState(() => {
+    return localStorage.getItem('orderPhone') || '';
+  });
   const [notes, setNotes] = useState(() => {
     return localStorage.getItem('orderNotes') || '';
   });
 
-  // Save address and notes to localStorage when they change
+  // Save form data to localStorage when they change
   useEffect(() => {
     if (address) {
       localStorage.setItem('orderAddress', address);
@@ -17,6 +20,14 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
       localStorage.removeItem('orderAddress');
     }
   }, [address]);
+
+  useEffect(() => {
+    if (phone) {
+      localStorage.setItem('orderPhone', phone);
+    } else {
+      localStorage.removeItem('orderPhone');
+    }
+  }, [phone]);
 
   useEffect(() => {
     if (notes) {
@@ -32,24 +43,43 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
     const orderData = {
       items: orderItems.map(item => ({
         product_id: item._id || item.id,
-        quantity: 1,
-        price: item.price
+        quantity: item.quantity || 1
       })),
       delivery_address: address,
-      notes: notes
+      contact_phone: phone,
+      delivery_notes: notes || undefined
     };
 
     onSubmit(orderData);
     
     // Clear the form and localStorage after successful submission
     setAddress('');
+    setPhone('');
     setNotes('');
     localStorage.removeItem('orderAddress');
+    localStorage.removeItem('orderPhone');
     localStorage.removeItem('orderNotes');
   };
 
+  const updateQuantity = (index, newQuantity) => {
+    if (newQuantity <= 0) {
+      // Remove item if quantity is 0 or less
+      const newItems = [...orderItems];
+      newItems.splice(index, 1);
+      onClear(newItems);
+    } else {
+      // Update quantity
+      const newItems = [...orderItems];
+      newItems[index] = { ...newItems[index], quantity: newQuantity };
+      onClear(newItems);
+    }
+  };
+
   const calculateTotal = () => {
-    return orderItems.reduce((total, item) => total + parseFloat(item.price), 0).toFixed(2);
+    return orderItems.reduce((total, item) => {
+      const quantity = item.quantity || 1;
+      return total + (parseFloat(item.price) * quantity);
+    }, 0).toFixed(2);
   };
 
   if (!orderItems.length) {
@@ -63,18 +93,34 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
       <div className="order-items">
         {orderItems.map((item, index) => (
           <div key={index} className="order-item">
-            <span>{item.name} - ${parseFloat(item.price).toFixed(2)}</span>
-            <button 
-              onClick={() => {
-                const newItems = [...orderItems];
-                newItems.splice(index, 1);
-                onClear(newItems); // Pass updated items to parent
-              }}
-              className="remove-item"
-              aria-label={`Remove ${item.name} from order`}
-            >
-              ✕
-            </button>
+            <div className="item-details">
+              <span className="item-name">{item.name}</span>
+              <span className="item-price">${parseFloat(item.price).toFixed(2)} each</span>
+            </div>
+            <div className="quantity-controls">
+              <button 
+                onClick={() => updateQuantity(index, (item.quantity || 1) - 1)}
+                className="quantity-btn"
+                aria-label="Decrease quantity"
+              >
+                -
+              </button>
+              <span className="quantity">{item.quantity || 1}</span>
+              <button 
+                onClick={() => updateQuantity(index, (item.quantity || 1) + 1)}
+                className="quantity-btn"
+                aria-label="Increase quantity"
+              >
+                +
+              </button>
+              <button 
+                onClick={() => updateQuantity(index, 0)}
+                className="remove-item"
+                aria-label={`Remove ${item.name} from order`}
+              >
+                ✕
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -91,17 +137,34 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             required
-            placeholder="Enter your delivery address"
+            placeholder="Enter your delivery address (minimum 10 characters)"
+            minLength={10}
+            maxLength={200}
           />
         </div>
 
         <div className="form-group">
-          <label htmlFor="notes">Order Notes:</label>
+          <label htmlFor="phone">Contact Phone:</label>
+          <input
+            type="tel"
+            id="phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            required
+            placeholder="Enter your phone number (e.g., +1234567890)"
+            pattern="^\+?1?\d{9,15}$"
+            title="Please enter a valid phone number (9-15 digits, optionally starting with + or +1)"
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="notes">Delivery Notes:</label>
           <textarea
             id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Any special instructions?"
+            placeholder="Any special delivery instructions?"
+            maxLength={200}
           />
         </div>
 
@@ -111,8 +174,10 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
             onClick={() => {
               onClear([]);
               setAddress('');
+              setPhone('');
               setNotes('');
               localStorage.removeItem('orderAddress');
+              localStorage.removeItem('orderPhone');
               localStorage.removeItem('orderNotes');
             }}
             className="clear-order"

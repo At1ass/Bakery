@@ -575,13 +575,34 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                 {orders.map(order => (
                   <tr key={order._id || order.id}>
                     <td>{order._id || order.id}</td>
-                    <td>{order.user_email || 'Unknown'}</td>
+                    <td>{order.user_email || order.customer_email || (order.user_id ? `User ${order.user_id.slice(-8)}` : 'Unknown')}</td>
                     <td>{new Date(order.created_at || order.timestamp || Date.now()).toLocaleDateString()}</td>
-                    <td>{order.items?.length || 0} items</td>
                     <td>
-                      ${order.total_amount 
-                        ? parseFloat(order.total_amount).toFixed(2) 
-                        : (order.items || []).reduce((sum, item) => sum + (parseFloat(item.price) * (item.quantity || 1)), 0).toFixed(2)}
+                      {order.items && order.items.length > 0 ? (
+                        <div className="order-items">
+                          {order.items.map((item, index) => (
+                            <div key={index} className="order-item">
+                              <strong>{item.product_name || `Product ${item.product_id}`}</strong> × {item.quantity || 1}
+                              {item.unit_price && (
+                                <span className="item-price"> (${parseFloat(item.unit_price).toFixed(2)} each)</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        `${order.items?.length || 0} items`
+                      )}
+                    </td>
+                    <td>
+                      ${order.total 
+                        ? parseFloat(order.total).toFixed(2) 
+                        : order.total_amount 
+                        ? parseFloat(order.total_amount).toFixed(2)
+                        : (order.items || []).reduce((sum, item) => {
+                            const price = item.unit_price || item.total_price || item.price || 0;
+                            const quantity = item.quantity || 1;
+                            return sum + (parseFloat(price) * quantity);
+                          }, 0).toFixed(2)}
                     </td>
                     <td>{order.status || 'Pending'}</td>
                   </tr>

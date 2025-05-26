@@ -259,4 +259,25 @@ tr:hover {
 
 section {
   margin-bottom: 40px;
+}
+
+/* Order items styling */
+.order-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.order-item {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.order-item strong {
+  color: #2c3e50;
+}
+
+.item-price {
+  color: #7f8c8d;
+  font-size: 12px;
 } 

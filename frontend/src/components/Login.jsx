@@ -157,7 +157,7 @@ export default function Login({ onLogin }) {
               required
               placeholder="Enter your password"
               autoComplete={isRegistering ? "new-password" : "current-password"}
-              minLength="12"
+              minLength={isRegistering ? "12" : undefined}
               disabled={loading}
               aria-label="Password"
             />
