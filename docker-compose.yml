@@ -96,11 +96,13 @@ services:
     ports: ['8003:8000']
     environment:
       MONGO_URI: mongodb://mongo:27017
-      AUTH_URL: http://auth:8000
-      CATALOG_URL: http://catalog:8000
+      AUTH_SERVICE_URL: http://auth:8000
+      CATALOG_SERVICE_URL: http://catalog:8000
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET}
       ALLOWED_ORIGINS: http://localhost:3001,https://localhost:3002
+      DEBUG: "true"
+      LOG_LEVEL: DEBUG
     depends_on:
       auth:
         condition: service_healthy
@@ -110,7 +112,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -136,9 +138,9 @@ services:
       - "3002:3002"
     environment:
       NODE_ENV: production
-      AUTH_API_URL: http://auth:8000
-      CATALOG_API_URL: http://catalog:8000
-      ORDER_API_URL: http://order:8000
+      AUTH_API_URL: http://localhost:8001
+      CATALOG_API_URL: http://localhost:8002
+      ORDER_API_URL: http://localhost:8003
       SESSION_TIMEOUT: 1800000
       TOKEN_REFRESH_INTERVAL: 1500000
       AUTH_CLIENT_ID: confectionery-frontend

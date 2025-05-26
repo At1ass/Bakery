@@ -38,7 +38,9 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       .then(response => {
         console.log('Orders API response:', response);
         if (response?.data) {
-          let ordersData;
+          let ordersData = [];
+          
+          // Handle different response formats
           if (Array.isArray(response.data)) {
             ordersData = response.data;
           } else if (response.data.orders && Array.isArray(response.data.orders)) {
@@ -49,14 +51,21 @@ export default function SellerDashboard({ products = [], token, onProductsChange
             console.warn('Unexpected orders data format:', response.data);
             ordersData = [];
           }
+          
           console.log('Processed orders data:', ordersData);
+          console.log('Number of orders found:', ordersData.length);
           setOrders(ordersData);
+        } else {
+          console.warn('No data in orders response:', response);
+          setOrders([]);
         }
       })
       .catch(error => {
         console.error('Failed to fetch orders:', error);
-        setError(t('seller.errorLoadingOrders'));
+        console.error('Error details:', error.response?.data);
+        setError(t('seller.errorLoadingOrders') + ': ' + (error.response?.data?.detail || error.message));
         setTimeout(() => setError(''), 5000);
+        setOrders([]); // Set empty array on error
       });
   }, [token, t]);
 
@@ -579,7 +588,7 @@ export default function SellerDashboard({ products = [], token, onProductsChange
                 {orders.map(order => (
                   <tr key={order._id || order.id}>
                     <td>{order._id || order.id}</td>
-                    <td>{order.user_email || order.customer_email || (order.user_id ? `User ${order.user_id.slice(-8)}` : 'Unknown')}</td>
+                    <td>{order.user_email || order.customer_email || (order.user_id ? `Customer ID: ${order.user_id.slice(-8)}` : 'Unknown Customer')}</td>
                     <td>{new Date(order.created_at || order.timestamp || Date.now()).toLocaleDateString()}</td>
                     <td>
                       {order.items && order.items.length > 0 ? (

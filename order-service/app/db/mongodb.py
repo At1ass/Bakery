@@ -42,31 +42,31 @@ async def init_db() -> None:
             _database = _client[settings.database_name]
             
             # Setup collections and indexes
-            products_collection = _database.get_collection('products')
+            orders_collection = _database.get_collection('orders')
             
-            # Check if products collection exists
+            # Check if orders collection exists
             collections = await _database.list_collection_names()
-            if "products" not in collections:
-                logger.info("Initializing products collection with indexes")
+            if "orders" not in collections:
+                logger.info("Initializing orders collection with indexes")
                 # Create the collection by inserting and removing a dummy document
-                await products_collection.insert_one({"_temp": True})
-                await products_collection.delete_one({"_temp": True})
+                await orders_collection.insert_one({"_temp": True})
+                await orders_collection.delete_one({"_temp": True})
                 
             # Create indexes
-            existing_indexes = await products_collection.index_information()
+            existing_indexes = await orders_collection.index_information()
             
             indexes_created = []
-            if 'name_1' not in existing_indexes:
-                await products_collection.create_index([("name", 1)], unique=True)
-                indexes_created.append("name")
+            if 'user_id_1' not in existing_indexes:
+                await orders_collection.create_index([("user_id", 1)])
+                indexes_created.append("user_id")
                 
-            if 'category_1' not in existing_indexes:
-                await products_collection.create_index([("category", 1)])
-                indexes_created.append("category")
+            if 'status_1' not in existing_indexes:
+                await orders_collection.create_index([("status", 1)])
+                indexes_created.append("status")
                 
-            if 'tags_1' not in existing_indexes:
-                await products_collection.create_index([("tags", 1)])
-                indexes_created.append("tags")
+            if 'created_at_-1' not in existing_indexes:
+                await orders_collection.create_index([("created_at", -1)])
+                indexes_created.append("created_at")
             
             if indexes_created:
                 logger.info(f"Created indexes: {', '.join(indexes_created)}")
@@ -90,10 +90,10 @@ async def get_database() -> AsyncIOMotorDatabase:
     return _database
 
 
-async def get_products_collection() -> AsyncIOMotorCollection:
-    """Get the products collection."""
+async def get_orders_collection() -> AsyncIOMotorCollection:
+    """Get the orders collection."""
     db = await get_database()
-    return db.get_collection('products')
+    return db.get_collection('orders')
 
 
 async def close_db_connection() -> None:

@@ -248,7 +248,7 @@ export async function createProduct(token, product) {
         // Ensure product data is properly serialized for JSON
         const serializedProduct = JSON.parse(JSON.stringify(product));
         
-        const response = await catalogApi.post('/products', serializedProduct, {
+        const response = await catalogApi.post('/products/', serializedProduct, {
             headers: { 
                 Authorization: `Bearer ${token}`,
                 'Accept': 'application/json',
@@ -328,7 +328,7 @@ export async function deleteProduct(token, productId) {
 
 export async function createOrder(token, order) {
     try {
-        const response = await orderApi.post('/orders', order, {
+        const response = await orderApi.post('/api/v1/orders/', order, {
             headers: { Authorization: `Bearer ${token}` }
         });
         return response;
@@ -340,7 +340,7 @@ export async function createOrder(token, order) {
 
 export async function fetchOrders(token) {
     try {
-        const response = await orderApi.get('/orders', {
+        const response = await orderApi.get('/api/v1/orders/', {
             headers: { Authorization: `Bearer ${token}` }
         });
         return response;

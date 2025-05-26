@@ -1,13 +1,14 @@
 # FastAPI framework and server
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
 
 # MongoDB driver
 motor==3.3.2
-pymongo==4.6.1
+pymongo==4.6.0
 
 # Data validation and serialization
-pydantic==2.6.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
 email-validator==2.1.0.post1
 python-dateutil==2.8.2
 
@@ -20,9 +21,12 @@ passlib[bcrypt]==1.7.4
 slowapi==0.1.9
 
 # Networking
-aiohttp==3.9.3
+aiohttp==3.9.1
 aiodns==3.1.1
 charset-normalizer==3.3.2
 
 # Performance optimizations
 orjson==3.9.10
+
+# Environment variables
+python-dotenv==1.0.0

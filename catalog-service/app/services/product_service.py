@@ -255,7 +255,7 @@ class ProductService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to fetch tags"
-            )
+            ) 
     
     async def create_test_data(self):
         """Create test data for development"""

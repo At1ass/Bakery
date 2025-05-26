@@ -266,10 +266,14 @@ export default function App() {
       const response = await createOrder(token, orderData);
       console.log('Order response:', response);
       
+      // Clear the order items and form
       setOrderItems([]);
       localStorage.removeItem('orderItems');
-      setSuccessMessage('Order placed successfully!');
-      setTimeout(() => setSuccessMessage(''), 5000);
+      
+      // Show success message with order details
+      const orderId = response?.data?.id || response?.data?.order?.id || 'Unknown';
+      setSuccessMessage(`🎉 Order placed successfully! Order ID: ${orderId}. You will receive a confirmation email shortly.`);
+      setTimeout(() => setSuccessMessage(''), 10000); // Show for 10 seconds
       
       // Refresh product list to update availability
       try {

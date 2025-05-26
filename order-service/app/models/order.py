@@ -6,6 +6,7 @@ from enum import Enum
 import re
 from bson.objectid import ObjectId
 
+
 class OrderStatus(str, Enum):
     """Order status enum representing the possible states of an order"""
     PENDING = "pending"
@@ -14,6 +15,7 @@ class OrderStatus(str, Enum):
     READY = "ready"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+
 
 class PyObjectId(str):
     """Custom type for handling MongoDB ObjectId, ensuring proper validation and serialization"""
@@ -26,6 +28,7 @@ class PyObjectId(str):
         if not isinstance(v, str) and not isinstance(v, ObjectId):
             raise ValueError("Not a valid ObjectId")
         return str(v)
+
 
 class OrderItem(BaseModel):
     """Model representing an item in an order"""
@@ -60,11 +63,12 @@ class OrderItem(BaseModel):
             return v.strip()
         return v
 
+
 class Order(BaseModel):
     """Model representing an order in the system"""
     id: Optional[PyObjectId] = Field(None, alias="_id", description="Order ID")
     user_id: Optional[str] = Field(None, description="User ID (filled by server)")
-    items: List[OrderItem] = Field(..., min_items=1, max_items=50, description="List of ordered items")
+    items: List[OrderItem] = Field(..., min_length=1, max_length=50, description="List of ordered items")
     total: Optional[Decimal] = Field(None, description="Total order amount (filled by server)")
     status: OrderStatus = Field(default=OrderStatus.PENDING, description="Order status")
     delivery_address: Annotated[str, StringConstraints(min_length=10, max_length=200)] = Field(
@@ -120,4 +124,4 @@ class Order(BaseModel):
             if item.product_id in product_ids:
                 raise ValueError(f'Duplicate product ID: {item.product_id}. Each product should be added only once with the desired quantity.')
             product_ids.add(item.product_id)
-        return v
+        return v 
