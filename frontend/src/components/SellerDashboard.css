@@ -144,6 +144,7 @@
   font-family: inherit;
   transition: all 0.3s ease;
   background: #f8f9fa;
+  color: #2c3e50;
 }
 
 .form-group input:focus,
@@ -154,12 +155,27 @@
   background: white;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
   transform: translateY(-2px);
+  color: #2c3e50;
 }
 
 .form-group textarea {
   resize: vertical;
   min-height: 120px;
   line-height: 1.6;
+  color: #2c3e50;
+  font-weight: 400;
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: #6c757d;
+  opacity: 0.8;
+}
+
+.form-group input:not(:placeholder-shown),
+.form-group textarea:not(:placeholder-shown) {
+  color: #2c3e50;
+  font-weight: 400;
 }
 
 .form-group select {
@@ -645,4 +661,40 @@ tbody td {
 @keyframes gradientShift {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
+}
+
+/* Ensure text is visible when typing */
+.form-group input:not(:placeholder-shown),
+.form-group textarea:not(:placeholder-shown) {
+  color: #2c3e50;
+  font-weight: 400;
+}
+
+/* Additional rules for better text visibility */
+.form-group textarea:valid,
+.form-group textarea:invalid {
+  color: #2c3e50 !important;
+}
+
+/* Ensure text is visible during autofill */
+.form-group input:-webkit-autofill,
+.form-group textarea:-webkit-autofill {
+  -webkit-text-fill-color: #2c3e50 !important;
+  -webkit-box-shadow: 0 0 0px 1000px #f8f9fa inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Ensure text is visible in all states */
+.form-group input,
+.form-group textarea {
+  -webkit-text-fill-color: #2c3e50;
+  text-fill-color: #2c3e50;
+}
+
+/* Force text color for better compatibility */
+.form-group textarea:focus,
+.form-group textarea:active,
+.form-group textarea:hover {
+  color: #2c3e50 !important;
+  -webkit-text-fill-color: #2c3e50 !important;
 } 

@@ -114,7 +114,13 @@
   font-family: inherit;
   transition: all 0.3s ease;
   background: #f8f9fa;
+  color: #2c3e50;
   box-sizing: border-box;
+}
+
+.form-group input::placeholder {
+  color: #6c757d;
+  opacity: 0.8;
 }
 
 .form-group input:focus,
@@ -122,16 +128,19 @@
   outline: none;
   border-color: #667eea;
   background: white;
+  color: #2c3e50;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
   transform: translateY(-2px);
 }
 
 .form-group input:invalid {
   border-color: #e74c3c;
+  color: #2c3e50;
 }
 
 .form-group input:invalid:focus {
   border-color: #e74c3c;
+  color: #2c3e50;
   box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
 }
 
@@ -265,11 +274,13 @@
 .form-group.has-error input {
   border-color: #e74c3c;
   background: #fdf2f2;
+  color: #2c3e50;
 }
 
 .form-group.has-success input {
   border-color: #27ae60;
   background: #f2fdf5;
+  color: #2c3e50;
 }
 
 .validation-message {

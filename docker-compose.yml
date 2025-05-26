@@ -32,16 +32,17 @@ services:
     container_name: confectionery-auth
     ports: ['8001:8000']
     environment:
-      MONGO_URI: mongodb://mongo:27017
-      JWT_SECRET: ${JWT_SECRET}
-      NODE_ENV: production
-      ALLOWED_ORIGINS: http://localhost:3001,https://localhost:3002
+      AUTH_MONGO_URI: mongodb://mongo:27017
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+      AUTH_ENVIRONMENT: production
+      AUTH_DEBUG: false
+      AUTH_ALLOWED_ORIGINS: http://localhost:3001,https://localhost:3002
     depends_on:
       mongo:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
       interval: 30s
       timeout: 10s
       retries: 3

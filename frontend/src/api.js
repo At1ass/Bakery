@@ -49,7 +49,7 @@ catalogApi.interceptors.response.use((response) => response, handleUnauthorized)
 orderApi.interceptors.response.use((response) => response, handleUnauthorized);
 
 export async function login(email, password) {
-    const response = await authApi.post('/login', 
+    const response = await authApi.post('/auth/login', 
         new URLSearchParams({ username: email, password: password }), 
         { 
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -79,7 +79,7 @@ export async function login(email, password) {
 }
 
 export async function register(email, password, role = 'Customer') {
-    const response = await authApi.post('/register', 
+    const response = await authApi.post('/auth/register', 
         { email, password: password, role },
         {
             validateStatus: function (status) {
@@ -104,7 +104,7 @@ export async function register(email, password, role = 'Customer') {
 
 export async function refreshToken(refreshToken) {
     try {
-        const response = await authApi.post('/refresh', 
+        const response = await authApi.post('/auth/refresh', 
             { refresh_token: refreshToken },
             {
                 validateStatus: function (status) {
@@ -141,7 +141,7 @@ export async function refreshToken(refreshToken) {
 
 export async function getCurrentUser(token) {
     try {
-        const response = await authApi.get('/me', {
+        const response = await authApi.get('/users/me', {
             headers: { 
                 Authorization: `Bearer ${token}`,
                 'Accept': 'application/json'
@@ -169,7 +169,7 @@ export async function getCurrentUser(token) {
                     localStorage.setItem('token', newToken);
                     
                     // Retry with new token
-                    const retryResponse = await authApi.get('/me', {
+                    const retryResponse = await authApi.get('/users/me', {
                         headers: { 
                             Authorization: `Bearer ${newToken}`,
                             'Accept': 'application/json'
