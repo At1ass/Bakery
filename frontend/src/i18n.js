@@ -237,7 +237,8 @@ const resources = {
       "orderForm.placeOrder": "Place Order",
       "orderForm.decreaseQuantity": "Decrease quantity",
       "orderForm.increaseQuantity": "Increase quantity",
-      "orderForm.removeItem": "Remove {{itemName}} from order"
+      "orderForm.removeItem": "Remove {{itemName}} from order",
+      "orderForm.addressTooShort": "Delivery address must be at least 10 characters long"
     }
   },
   ru: {
@@ -474,7 +475,8 @@ const resources = {
       "orderForm.placeOrder": "Оформить заказ",
       "orderForm.decreaseQuantity": "Уменьшить количество",
       "orderForm.increaseQuantity": "Увеличить количество",
-      "orderForm.removeItem": "Удалить {{itemName}} из заказа"
+      "orderForm.removeItem": "Удалить {{itemName}} из заказа",
+      "orderForm.addressTooShort": "Адрес доставки должен содержать не менее 10 символов"
     }
   }
 };

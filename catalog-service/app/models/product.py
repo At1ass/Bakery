@@ -1,49 +1,23 @@
-from pydantic import BaseModel, Field, constr, validator, HttpUrl, ConfigDict
-from typing import List, Optional, Literal, Union
+from pydantic import BaseModel, Field, field_validator, HttpUrl, ConfigDict
+from typing import List, Optional, Union, Annotated
 from decimal import Decimal
 import re
 from datetime import datetime
 
-class Ingredient(BaseModel):
-    """Model for ingredients in recipes"""
-    ingredient: constr(min_length=1, max_length=100) = Field(..., description="Ingredient name")
-    quantity: Decimal = Field(..., gt=0, description="Quantity of ingredient")
-    unit: constr(min_length=1, max_length=20) = Field(..., description="Unit of measurement (e.g., g, ml, pcs)")
+from .ingredient import Ingredient
 
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "ingredient": "flour",
-                "quantity": 2.5,
-                "unit": "cups"
-            }
-        }
-    )
-
-    @validator('unit')
-    def validate_unit(cls, v):
-        valid_units = {'g', 'kg', 'ml', 'l', 'pcs', 'tsp', 'tbsp', 'cups', 'oz', 'lbs'}
-        if v.lower() not in valid_units:
-            raise ValueError(f'Invalid unit. Must be one of: {", ".join(sorted(valid_units))}')
-        return v.lower()
-
-    @validator('ingredient')
-    def validate_ingredient(cls, v):
-        if not v.strip():
-            raise ValueError("Ingredient name cannot be empty")
-        return v.strip()
 
 class Product(BaseModel):
     """Model for product objects"""
     id: Optional[str] = Field(None, description="Product ID")
-    name: constr(min_length=1, max_length=100) = Field(..., description="Product name")
-    description: constr(min_length=1, max_length=500) = Field(..., description="Product description")
+    name: Annotated[str, Field(min_length=1, max_length=100, description="Product name")]
+    description: Annotated[str, Field(min_length=1, max_length=500, description="Product description")]
     price: Decimal = Field(..., gt=0, lt=10000, description="Product price (must be greater than 0 and less than 10000)")
     category: str = Field(..., description="Product category")
-    tags: List[constr(min_length=1, max_length=30)] = Field(
+    tags: List[Annotated[str, Field(min_length=1, max_length=30)]] = Field(
         default_factory=list,
         description="Product tags",
-        max_items=10
+        max_length=10
     )
     image_url: Optional[HttpUrl] = Field(None, description="URL to product image")
     recipe: List[Ingredient] = Field(default_factory=list, description="List of ingredients in the recipe")
@@ -72,7 +46,8 @@ class Product(BaseModel):
         }
     )
 
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def name_must_be_valid(cls, v):
         if not v.strip():
             raise ValueError("Name cannot be empty")
@@ -80,7 +55,8 @@ class Product(BaseModel):
             raise ValueError('Name can only contain letters, numbers, spaces, hyphens, and apostrophes')
         return v.strip()
 
-    @validator('description')
+    @field_validator('description')
+    @classmethod
     def description_must_be_valid(cls, v):
         if not v.strip():
             raise ValueError("Description cannot be empty")
@@ -88,7 +64,8 @@ class Product(BaseModel):
             raise ValueError('Description contains invalid characters')
         return v.strip()
 
-    @validator('category')
+    @field_validator('category')
+    @classmethod
     def category_must_be_valid(cls, v):
         valid_categories = {
             'Cakes', 'Cupcakes', 'Cookies', 'Pastries', 'Breads',
@@ -98,7 +75,8 @@ class Product(BaseModel):
             raise ValueError(f'Invalid category. Must be one of: {", ".join(sorted(valid_categories))}')
         return v
 
-    @validator('tags')
+    @field_validator('tags')
+    @classmethod
     def tags_must_be_valid(cls, v):
         if not v:  # If tags is empty, return default list
             return ['uncategorized']
@@ -116,10 +94,11 @@ class Product(BaseModel):
         
         return v
 
-    @validator('price')
+    @field_validator('price')
+    @classmethod
     def validate_price(cls, v):
         # Round to 2 decimal places and convert to float
         try:
             return float(round(v, 2))
         except Exception:
-            raise ValueError("Price must be a valid decimal number")
+            raise ValueError("Price must be a valid decimal number") 

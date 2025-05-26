@@ -14,6 +14,22 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
     return localStorage.getItem('orderNotes') || '';
   });
 
+  const clearForm = () => {
+    setAddress('');
+    setPhone('');
+    setNotes('');
+    localStorage.removeItem('orderAddress');
+    localStorage.removeItem('orderPhone');
+    localStorage.removeItem('orderNotes');
+  };
+
+  // Clear form when orderItems becomes empty (successful order placement)
+  useEffect(() => {
+    if (orderItems.length === 0) {
+      clearForm();
+    }
+  }, [orderItems.length]);
+
   // Save form data to localStorage when they change
   useEffect(() => {
     if (address) {
@@ -42,25 +58,23 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     
+    // Validate address length
+    if (address.trim().length < 10) {
+      alert(t('orderForm.addressTooShort') || 'Delivery address must be at least 10 characters long');
+      return;
+    }
+    
     const orderData = {
       items: orderItems.map(item => ({
         product_id: item._id || item.id,
         quantity: item.quantity || 1
       })),
-      delivery_address: address,
-      contact_phone: phone,
-      delivery_notes: notes || undefined
+      delivery_address: address.trim(),
+      contact_phone: phone.trim(),
+      delivery_notes: notes.trim() || undefined
     };
 
     onSubmit(orderData);
-    
-    // Clear the form and localStorage after successful submission
-    setAddress('');
-    setPhone('');
-    setNotes('');
-    localStorage.removeItem('orderAddress');
-    localStorage.removeItem('orderPhone');
-    localStorage.removeItem('orderNotes');
   };
 
   const updateQuantity = (index, newQuantity) => {
@@ -140,7 +154,6 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
             onChange={(e) => setAddress(e.target.value)}
             required
             placeholder={t('orderForm.deliveryAddressPlaceholder')}
-            minLength={10}
             maxLength={200}
           />
         </div>
@@ -175,12 +188,7 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
             type="button" 
             onClick={() => {
               onClear([]);
-              setAddress('');
-              setPhone('');
-              setNotes('');
-              localStorage.removeItem('orderAddress');
-              localStorage.removeItem('orderPhone');
-              localStorage.removeItem('orderNotes');
+              clearForm();
             }}
             className="clear-order"
           >

@@ -410,8 +410,11 @@ async def create_order(request: Request, order: Order, user: Dict[str, Any] = De
         async with aiohttp.ClientSession() as session:
             for item in order_dict['items']:
                 logger.info(f"Fetching details for product {item['product_id']}")
-                product = await get_product_details(item['product_id'], session)
-                logger.info(f"Product data received: {product}")
+                product_response = await get_product_details(item['product_id'], session)
+                logger.info(f"Product data received: {product_response}")
+                
+                # Extract the actual product data from the response
+                product = product_response.get('product', product_response)
                 
                 item['product_name'] = product['name']
                 

@@ -150,7 +150,8 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       console.log('Create product response:', response);
 
       if (response?.data) {
-        const newProductData = response.data;
+        // Extract the product from the response structure: { message: "...", product: {...} }
+        const newProductData = response.data.product || response.data;
         console.log('New product created:', newProductData);
         onProductsChange([...displayProducts, newProductData]);
         setNewProduct({ 
@@ -216,7 +217,8 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       console.log('Update product response:', response);
 
       if (response?.data) {
-        const updatedProductData = response.data;
+        // Extract the product from the response structure: { message: "...", product: {...} }
+        const updatedProductData = response.data.product || response.data;
         console.log('Product updated:', updatedProductData);
         
         // Update the products array with the updated product
