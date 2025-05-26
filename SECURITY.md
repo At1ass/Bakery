@@ -1,146 +1,206 @@
 # Security Implementation
 
-This document outlines the security measures implemented in the confectionery microservice system.
+This document outlines the comprehensive security measures implemented in the Confectionery E-commerce Microservice System.
 
-## 🔐 Password Security
+## 🔐 SSL/TLS Encryption
 
-### Backend Password Handling
-- **Hashing Algorithm**: bcrypt with 12 salt rounds
-- **Storage**: Only hashed passwords are stored in the database
-- **Verification**: Plain text passwords are verified against stored hashes using bcrypt
-- **No Plain Text**: Plain text passwords are never stored or logged
+### Locally Trusted Certificates with mkcert
+
+The application uses **mkcert** to generate locally trusted SSL certificates for development:
+
+- **Certificate Authority**: mkcert development CA
+- **Encryption**: TLS 1.3 with AES-256-GCM cipher
+- **Supported Domains**: localhost, 127.0.0.1, ::1
+- **HTTP/2 Support**: Enabled for better performance
+
+#### Setup Instructions
+
+1. **Install mkcert** (if not already installed):
+   ```bash
+   # Manjaro/Arch Linux
+   sudo pacman -S mkcert
+   
+   # Ubuntu/Debian
+   sudo apt install libnss3-tools
+   curl -JLO "https://dl.filippo.io/mkcert/latest?for=linux/amd64"
+   chmod +x mkcert-v*-linux-amd64
+   sudo mv mkcert-v*-linux-amd64 /usr/local/bin/mkcert
+   
+   # macOS
+   brew install mkcert
+   ```
+
+2. **Install the root CA**:
+   ```bash
+   mkcert -install
+   ```
+
+3. **Generate certificates** (already done):
+   ```bash
+   mkdir ssl-certs
+   cd ssl-certs
+   mkcert localhost 127.0.0.1 ::1
+   ```
+
+#### Browser Trust
+
+After installing mkcert and the root CA:
+- ✅ **Chrome/Chromium**: Certificates are automatically trusted
+- ✅ **Firefox**: Certificates are automatically trusted  
+- ✅ **Safari**: Certificates are automatically trusted
+- ✅ **Edge**: Certificates are automatically trusted
+
+The browser will show a **secure lock icon** instead of security warnings.
+
+## 🔑 Password Security
+
+### Backend Password Hashing
+- **Algorithm**: bcrypt with 12 salt rounds
+- **Library**: `bcryptjs` (Node.js compatible)
+- **Storage**: Only hashed passwords stored in database
+- **Verification**: Server-side only
 
 ### Password Requirements
-- Minimum length: 12 characters
-- Must contain: uppercase, lowercase, number, and special character
-- Pattern: `^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$`
-
-## 🔒 Transport Security
-
-### HTTPS/TLS Configuration
-- **HTTP to HTTPS Redirect**: All HTTP traffic is redirected to HTTPS
-- **TLS Versions**: TLSv1.2 and TLSv1.3 only
-- **Strong Ciphers**: ECDHE-RSA-AES256-GCM-SHA512 and similar
-- **HSTS**: Strict-Transport-Security header with 1-year max-age
-- **Self-signed Certificates**: For development (replace with proper certificates in production)
-
-### Security Headers
-- `Strict-Transport-Security`: Forces HTTPS connections
-- `X-Frame-Options`: Prevents clickjacking attacks
-- `X-XSS-Protection`: Enables XSS filtering
-- `X-Content-Type-Options`: Prevents MIME type sniffing
-- `Content-Security-Policy`: Restricts resource loading
-- `Referrer-Policy`: Controls referrer information
-- `Permissions-Policy`: Restricts browser features
+- **Minimum Length**: 8 characters
+- **Complexity**: Enforced during registration
+- **Validation**: Client-side and server-side
 
 ## 🛡️ Authentication & Authorization
 
 ### JWT Token Security
 - **Algorithm**: HS256 (HMAC with SHA-256)
-- **Secret Key**: Minimum 32 characters, stored as environment variable
-- **Token Types**: Access tokens (30 min) and refresh tokens (7 days)
-- **Unique Token ID**: Each token has a unique JTI for revocation capability
+- **Secret**: Environment variable `JWT_SECRET`
+- **Expiration**: 24 hours
+- **Storage**: HTTP-only cookies (planned)
+- **Unique Token ID**: Prevents token reuse
 
-### Account Security
-- **Failed Login Protection**: Account lockout after 5 failed attempts
-- **Lockout Duration**: 15 minutes
-- **Case-insensitive Email**: Prevents duplicate accounts with different cases
-- **Role-based Access**: Customer, Seller, Admin roles with appropriate permissions
+### Role-Based Access Control
+- **Customer Role**: Order management, product browsing
+- **Seller Role**: Order fulfillment, inventory management
+- **Admin Role**: System administration (planned)
 
-## 🚫 Rate Limiting
+## 🌐 Network Security
+
+### HTTPS Configuration
+- **Protocol**: TLS 1.3 (preferred), TLS 1.2 (fallback)
+- **Cipher Suites**: Strong encryption only
+- **HTTP Redirect**: 301 permanent redirect to HTTPS
+- **HSTS**: HTTP Strict Transport Security enabled
+
+### Security Headers
+```nginx
+# Security Headers
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-Frame-Options "DENY" always;
+add_header X-XSS-Protection "1; mode=block" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" always;
+```
+
+## 🚦 Rate Limiting
 
 ### API Rate Limits
 - **Registration**: 3 requests per minute per IP
 - **Login**: 5 requests per minute per IP
-- **Token Refresh**: 5 requests per minute per IP
-- **General API**: Configurable limits per endpoint
+- **General API**: 100 requests per minute per IP
+- **Implementation**: FastAPI SlowAPI middleware
 
-## 🗄️ Database Security
-
-### MongoDB Security
-- **Connection Pooling**: Configured with min/max pool sizes
-- **Write Concern**: Majority write concern for data consistency
-- **Indexes**: Unique email index to prevent duplicates
-- **Connection Timeout**: 5-second timeout for connections
-
-### Data Validation
-- **Input Sanitization**: All inputs are validated and sanitized
-- **Email Validation**: Proper email format validation
-- **Password Strength**: Enforced password complexity requirements
-
-## 🔍 Logging & Monitoring
-
-### Security Logging
-- **Failed Login Attempts**: Logged with timestamps
-- **Account Lockouts**: Logged for monitoring
-- **Authentication Errors**: Detailed error logging
-- **No Sensitive Data**: Passwords and tokens are never logged
-
-### Error Handling
-- **Generic Error Messages**: Prevent information disclosure
-- **Detailed Server Logs**: For debugging without exposing to clients
-- **HTTP Status Codes**: Appropriate status codes for different scenarios
-
-## 🌐 CORS Configuration
+## 🔒 CORS Security
 
 ### Cross-Origin Resource Sharing
-- **Allowed Origins**: Explicitly configured origins only
-- **Credentials**: Enabled for authenticated requests
-- **Methods**: Limited to necessary HTTP methods
-- **Headers**: Controlled header exposure
+- **Allowed Origins**: Specific domains only
+  - `http://localhost:3001` (development)
+  - `https://localhost:3002` (production)
+- **Credentials**: Allowed for authenticated requests
+- **Methods**: GET, POST, PUT, DELETE, OPTIONS
+- **Headers**: Controlled and validated
 
-## 📦 Container Security
+## 🐳 Container Security
 
-### Docker Security
-- **Non-root User**: Services run as non-root users where possible
-- **Resource Limits**: CPU and memory limits configured
-- **Health Checks**: Regular health monitoring
-- **Minimal Images**: Alpine-based images for smaller attack surface
+### Docker Security Measures
+- **Resource Limits**: CPU and memory constraints
+- **Health Checks**: Container health monitoring
+- **Non-root Users**: Services run as non-privileged users
+- **Image Scanning**: Regular vulnerability scans (recommended)
 
-## 🔧 Environment Configuration
+### Container Configuration
+```yaml
+deploy:
+  resources:
+    limits:
+      cpus: '0.5'
+      memory: 512M
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+```
 
-### Environment Variables
-- **JWT_SECRET**: Strong secret key for token signing
-- **Database Credentials**: Secure database connection strings
-- **API URLs**: Configurable service endpoints
-- **Timeouts**: Configurable timeout values
+## 📊 Security Monitoring
 
-## ⚠️ Security Considerations
+### Logging & Monitoring
+- **Access Logs**: All HTTP requests logged
+- **Error Logs**: Security events and failures
+- **Authentication Logs**: Login attempts and failures
+- **Rate Limit Logs**: Blocked requests
 
-### Development vs Production
-- **Self-signed Certificates**: Replace with proper CA-signed certificates in production
-- **Environment Variables**: Use secure secret management in production
-- **Database Security**: Enable authentication and encryption in production
-- **Network Security**: Use private networks and firewalls in production
+### Security Events
+- Failed login attempts
+- Rate limit violations
+- Invalid JWT tokens
+- CORS violations
 
-### Regular Security Tasks
-- **Dependency Updates**: Regularly update dependencies for security patches
-- **Certificate Renewal**: Monitor and renew SSL certificates
-- **Security Audits**: Regular security assessments
-- **Log Monitoring**: Monitor logs for suspicious activities
+## 🔧 Development vs Production
 
-## 🚀 Deployment Security
+### Development Security
+- **mkcert**: Locally trusted certificates
+- **Debug Mode**: Disabled in production
+- **Verbose Logging**: Enabled for debugging
 
-### Production Checklist
-- [ ] Replace self-signed certificates with CA-signed certificates
-- [ ] Enable MongoDB authentication and encryption
-- [ ] Configure proper firewall rules
-- [ ] Set up log aggregation and monitoring
-- [ ] Enable automated security updates
-- [ ] Configure backup and disaster recovery
-- [ ] Set up intrusion detection
-- [ ] Implement proper secret management
+### Production Recommendations
+- **Let's Encrypt**: Use real SSL certificates
+- **WAF**: Web Application Firewall
+- **DDoS Protection**: CloudFlare or similar
+- **Security Scanning**: Regular penetration testing
 
-## 📚 Security Best Practices
+## 📋 Security Checklist
 
-### Code Security
-- **Input Validation**: All inputs are validated on both client and server
-- **Output Encoding**: Proper encoding to prevent XSS
-- **SQL Injection Prevention**: Using parameterized queries and ODM
-- **Dependency Management**: Regular security audits of dependencies
+### ✅ Implemented
+- [x] HTTPS/TLS encryption
+- [x] Password hashing (bcrypt)
+- [x] JWT authentication
+- [x] Rate limiting
+- [x] Security headers
+- [x] CORS protection
+- [x] Container security
+- [x] Input validation
 
-### Operational Security
-- **Principle of Least Privilege**: Services have minimal required permissions
-- **Defense in Depth**: Multiple layers of security controls
-- **Regular Updates**: Automated security updates where possible
-- **Incident Response**: Documented procedures for security incidents 
+### 🔄 Planned Improvements
+- [ ] OAuth2 integration
+- [ ] Two-factor authentication
+- [ ] Session management
+- [ ] API key authentication
+- [ ] Database encryption at rest
+- [ ] Audit logging
+- [ ] Intrusion detection
+
+## 🚨 Security Incident Response
+
+### Immediate Actions
+1. **Isolate**: Stop affected containers
+2. **Assess**: Determine scope of breach
+3. **Contain**: Prevent further damage
+4. **Recover**: Restore from backups
+5. **Learn**: Update security measures
+
+### Contact Information
+- **Security Team**: security@company.com
+- **Emergency**: +1-XXX-XXX-XXXX
+
+---
+
+**Last Updated**: May 26, 2025  
+**Security Review**: Quarterly  
+**Next Review**: August 26, 2025 

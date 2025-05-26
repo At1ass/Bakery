@@ -23,14 +23,14 @@ RUN cp /app/src/environment.js /app/dist/assets/environment.js
 FROM nginx:stable-alpine
 
 # Install envsubst for environment variable substitution
-RUN apk add --no-cache gettext openssl
+RUN apk add --no-cache gettext
 
-# Generate self-signed SSL certificate for development
-RUN mkdir -p /etc/nginx/ssl && \
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /etc/nginx/ssl/key.pem \
-    -out /etc/nginx/ssl/cert.pem \
-    -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
+# Create SSL directory
+RUN mkdir -p /etc/nginx/ssl
+
+# Copy locally generated mkcert certificates
+COPY localhost+2.pem /etc/nginx/ssl/cert.pem
+COPY localhost+2-key.pem /etc/nginx/ssl/key.pem
 
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
