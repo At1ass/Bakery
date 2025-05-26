@@ -16,8 +16,14 @@ COPY . .
 # Build the app
 RUN npm run build
 
+# Copy the environment.js file to be used as a template
+RUN cp /app/src/environment.js /app/dist/assets/environment.js.template
+
 # Production stage
 FROM nginx:stable-alpine
+
+# Install envsubst for environment variable substitution
+RUN apk add --no-cache gettext
 
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
@@ -25,8 +31,12 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy static files from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+# Copy entrypoint script
+COPY entrypoint.sh /
+RUN chmod +x /entrypoint.sh
+
 # Expose port
 EXPOSE 3001
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Run entrypoint script
+ENTRYPOINT ["/entrypoint.sh"]

@@ -85,7 +85,8 @@ export default function Login({ onLogin }) {
       }
 
       if (loginResponse && loginResponse.access_token) {
-        onLogin(loginResponse.access_token);
+        // Pass the full response with both tokens to the parent component
+        onLogin(loginResponse);
       } else {
         console.error('Invalid login response:', loginResponse);
         throw new Error('No access token received');

@@ -2,6 +2,8 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
+// Import environment variables
+import './environment.js';
 
 const container = document.getElementById('root');
 

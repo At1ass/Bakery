@@ -4,16 +4,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
-from typing import Optional
-from models import UserIn, UserOut, Token, TokenData
-import os, bcrypt, logging, re, asyncio
+from typing import Optional, Dict, Any
+from models import UserIn, UserOut, Token, TokenData, RefreshToken
+import os, logging, re, asyncio, uuid
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from passlib.context import CryptContext
+from bson.objectid import ObjectId
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 # Password hashing configuration
@@ -53,58 +57,73 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", ALLOWED_ORIGINS[0])
     response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; object-src 'none'"
     return response
 
 # Database configuration with connection pooling and retry logic
-MONGO_URL = os.getenv('MONGO', 'mongodb://mongo:27017/confectionery')
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb://mongo:27017')
 MAX_POOL_SIZE = int(os.getenv('MONGO_MAX_POOL_SIZE', '100'))
 MIN_POOL_SIZE = int(os.getenv('MONGO_MIN_POOL_SIZE', '10'))
-MAX_RETRIES = 3
+MAX_RETRIES = 5
+RETRY_DELAY = 1  # seconds
 
 # Global database variables
 db = None
 users_collection = None
 
+async def get_database_client() -> AsyncIOMotorClient:
+    """Create and return a database client with proper connection settings."""
+    client = AsyncIOMotorClient(
+        MONGO_URI,
+        maxPoolSize=MAX_POOL_SIZE,
+        minPoolSize=MIN_POOL_SIZE,
+        serverSelectionTimeoutMS=5000,
+        connectTimeoutMS=5000,
+        socketTimeoutMS=10000,
+        retryWrites=True,
+        w="majority"
+    )
+    return client
+
 async def init_db():
+    """Initialize the database connection with retry logic."""
     global db, users_collection
     
-    async def get_database():
-        for attempt in range(MAX_RETRIES):
-            try:
-                client = AsyncIOMotorClient(
-                    MONGO_URL,
-                    maxPoolSize=MAX_POOL_SIZE,
-                    minPoolSize=MIN_POOL_SIZE,
-                    serverSelectionTimeoutMS=5000
-                )
-                await client.admin.command('ping')
-                return client.get_database('confectionery')
-            except Exception as e:
-                if attempt == MAX_RETRIES - 1:
-                    logger.error(f"Failed to connect to database after {MAX_RETRIES} attempts: {e}")
-                    raise
-                await asyncio.sleep(1)
-    
-    try:
-        db = await get_database()
-        # Drop existing collections to start fresh
-        users_collection = db.get_collection('users')
-        await users_collection.drop()
-        
-        # Create new collection
-        users_collection = db.get_collection('users')
-        
-        # Create indexes
-        await users_collection.create_index([("email", 1)], unique=True)
-        
-        logger.info("Successfully initialized database and created indexes")
-    except Exception as e:
-        logger.error(f"Failed to initialize database: {e}")
-        raise
+    for attempt in range(MAX_RETRIES):
+        try:
+            client = await get_database_client()
+            # Verify connection is working
+            await client.admin.command('ping')
+            db = client.confectionery
+            
+            # Setup collections and indexes
+            users_collection = db.users
+            # Create email index if it doesn't exist
+            existing_indexes = await users_collection.index_information()
+            if 'email_1' not in existing_indexes:
+                await users_collection.create_index([("email", 1)], unique=True)
+                logger.info("Created email index on users collection")
+            
+            logger.info("Successfully connected to MongoDB and initialized collections")
+            return
+        except Exception as e:
+            if attempt < MAX_RETRIES - 1:
+                logger.warning(f"Database connection attempt {attempt + 1} failed: {str(e)}. Retrying in {RETRY_DELAY}s...")
+                await asyncio.sleep(RETRY_DELAY)
+            else:
+                logger.error(f"Failed to connect to database after {MAX_RETRIES} attempts: {str(e)}")
+                raise
 
 @app.on_event("startup")
 async def startup_event():
     await init_db()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    # Close MongoDB connection
+    if hasattr(app.state, "mongodb_client"):
+        app.state.mongodb_client.close()
+        logger.info("Closed MongoDB connection")
 
 # Security configuration with strong defaults
 JWT_SECRET = os.getenv('JWT_SECRET')
@@ -122,6 +141,7 @@ MIN_PASSWORD_LENGTH = 12
 PASSWORD_PATTERN = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$'
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify password against stored hash."""
     try:
         return pwd_context.verify(plain_password, hashed_password)
     except Exception as e:
@@ -129,15 +149,18 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 def get_password_hash(password: str) -> str:
+    """Generate hash from password."""
     return pwd_context.hash(password)
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    """Create a new JWT access token."""
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
     to_encode.update({
         "exp": expire,
         "iat": datetime.utcnow(),
-        "type": "access"
+        "type": "access",
+        "jti": str(uuid.uuid4())  # Add unique token ID for revocation capability
     })
     try:
         return jwt.encode(to_encode, JWT_SECRET, algorithm=ALGORITHM)
@@ -148,13 +171,15 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
             detail="Could not create access token"
         )
 
-def create_refresh_token(data: dict) -> str:
+def create_refresh_token(data: Dict[str, Any]) -> str:
+    """Create a new JWT refresh token."""
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({
         "exp": expire,
         "iat": datetime.utcnow(),
-        "type": "refresh"
+        "type": "refresh",
+        "jti": str(uuid.uuid4())  # Add unique token ID for revocation capability
     })
     try:
         return jwt.encode(to_encode, JWT_SECRET, algorithm=ALGORITHM)
@@ -184,8 +209,9 @@ async def register(request: Request, user: UserIn):
 
         # Check if user exists with case-insensitive email comparison
         existing_user = await users_collection.find_one({
-            'email': {'$regex': f'^{user.email}$', '$options': 'i'}
+            'email': {'$regex': f'^{re.escape(user.email)}$', '$options': 'i'}
         })
+        
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -205,7 +231,13 @@ async def register(request: Request, user: UserIn):
         }
         result = await users_collection.insert_one(doc)
         
-        return UserOut(id=str(result.inserted_id), email=user.email, role=user.role)
+        # Return created user
+        return UserOut(
+            id=str(result.inserted_id), 
+            email=user.email, 
+            role=user.role,
+            created_at=doc['created_at']
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -221,7 +253,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
     try:
         # Find user by email (case-insensitive)
         user = await users_collection.find_one({
-            'email': {'$regex': f'^{form_data.username}$', '$options': 'i'}
+            'email': {'$regex': f'^{re.escape(form_data.username)}$', '$options': 'i'}
         })
         
         if not user:
@@ -233,10 +265,11 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         
         # Check if account is locked
         if user.get('locked_until'):
-            if datetime.utcnow() < user['locked_until']:
+            locked_until = user['locked_until']
+            if isinstance(locked_until, datetime) and datetime.utcnow() < locked_until:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=f"Account is locked until {user['locked_until']}",
+                    detail=f"Account is locked until {locked_until.isoformat()}",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
             else:
@@ -283,12 +316,13 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         )
         
         # Create tokens
+        user_data = {"sub": str(user['_id']), "email": user['email'], "role": user.get('role', 'Customer')}
         access_token = create_access_token(
-            data={"sub": str(user['_id']), "role": user.get('role', 'user')},
+            data=user_data,
             expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         refresh_token = create_refresh_token(
-            data={"sub": str(user['_id']), "role": user.get('role', 'user')}
+            data=user_data
         )
         
         return {
@@ -308,8 +342,9 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
 
 @app.post('/refresh', response_model=Token)
 @limiter.limit("5/minute")
-async def refresh_token(request: Request, token: str = Depends(oauth2_scheme)):
+async def refresh_token(request: Request, refresh: RefreshToken):
     try:
+        token = refresh.refresh_token
         payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
         if payload.get("type") != "refresh":
             raise HTTPException(
@@ -334,14 +369,19 @@ async def refresh_token(request: Request, token: str = Depends(oauth2_scheme)):
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
+        # Create new tokens
+        user_data = {"sub": str(user['_id']), "email": user['email'], "role": user.get('role', 'Customer')}
         access_token = create_access_token(
-            data={"sub": str(user['_id']), "role": user.get('role', 'user')},
+            data=user_data,
             expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        new_refresh_token = create_refresh_token(
+            data=user_data
         )
         
         return {
             "access_token": access_token,
-            "refresh_token": token,  # Return the same refresh token
+            "refresh_token": new_refresh_token,
             "token_type": "bearer",
             "role": user['role']
         }
@@ -377,7 +417,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     
     try:
-        from bson.objectid import ObjectId
         user = await users_collection.find_one({'_id': ObjectId(token_data.uid)})
         if user is None:
             raise credentials_exception
@@ -392,7 +431,9 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         return UserOut(
             id=str(current_user['_id']),
             email=current_user['email'],
-            role=current_user['role']
+            role=current_user['role'],
+            created_at=current_user.get('created_at'),
+            last_login=current_user.get('last_login')
         )
     except Exception as e:
         logger.error(f"Profile retrieval failed: {e}")

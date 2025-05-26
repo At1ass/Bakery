@@ -8,8 +8,8 @@ import SellerDashboard from './components/SellerDashboard.jsx';
 import './App.css';
 
 // Read from environment variables with fallback
-const SESSION_TIMEOUT = parseInt(process.env.REACT_APP_SESSION_TIMEOUT) || 30 * 60 * 1000; // 30 minutes
-const TOKEN_REFRESH_INTERVAL = parseInt(process.env.REACT_APP_TOKEN_REFRESH_INTERVAL) || 25 * 60 * 1000; // 25 minutes
+const SESSION_TIMEOUT = parseInt(window.env?.SESSION_TIMEOUT) || 30 * 60 * 1000; // 30 minutes
+const TOKEN_REFRESH_INTERVAL = parseInt(window.env?.TOKEN_REFRESH_INTERVAL) || 25 * 60 * 1000; // 25 minutes
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   return (
@@ -49,25 +49,28 @@ export default function App() {
 
   // Add token refresh mechanism
   useEffect(() => {
-    if (!token || !user) return;
+    if (!token) return;
 
     const refreshInterval = setInterval(async () => {
       try {
-        const newToken = await refreshToken(token);
+        const refreshTokenValue = localStorage.getItem('refreshToken');
+        if (!refreshTokenValue) {
+          throw new Error('No refresh token available');
+        }
+        
+        const newToken = await refreshToken(refreshTokenValue);
         setToken(newToken);
         localStorage.setItem('token', newToken);
         resetSession();
       } catch (error) {
         console.error('Failed to refresh token:', error);
-        if (error.response?.status === 401) {
-          handleLogout();
-          setError('Session expired. Please log in again.');
-        }
+        handleLogout();
+        setError('Session expired. Please log in again.');
       }
     }, TOKEN_REFRESH_INTERVAL);
 
     return () => clearInterval(refreshInterval);
-  }, [token, user, resetSession]);
+  }, [token, resetSession]);
 
   const handleUserActivity = useCallback(() => {
     if (token && user) {
@@ -179,16 +182,18 @@ export default function App() {
     };
   }, [token, user]);
 
-  const handleLogin = useCallback((newToken) => {
+  const handleLogin = useCallback((tokenData) => {
     setError('');
-    setToken(newToken);
-    localStorage.setItem('token', newToken);
+    setToken(tokenData.access_token);
+    localStorage.setItem('token', tokenData.access_token);
+    // Refresh token is stored in localStorage by the login function
     setIsInitialized(false);
   }, []);
 
   const handleLogout = useCallback(() => {
     setToken('');
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     setUser(null);
     setOrderItems([]);
     setError('');
@@ -216,15 +221,28 @@ export default function App() {
     }
 
     try {
-      await createOrder(token, orderData);
+      console.log('Sending order data:', orderData);
+      const response = await createOrder(token, orderData);
+      console.log('Order response:', response);
+      
       setOrderItems([]);
       setSuccessMessage('Order placed successfully!');
       setTimeout(() => setSuccessMessage(''), 5000);
       
-      const productsResponse = await fetchProducts(token);
-      if (Array.isArray(productsResponse?.data)) {
-        setProducts(productsResponse.data);
+      // Refresh product list to update availability
+      try {
+        const productsResponse = await fetchProducts(token);
+        console.log('Products response after order:', productsResponse);
+        if (productsResponse?.data) {
+          const productsArray = Array.isArray(productsResponse.data) ? 
+            productsResponse.data : 
+            productsResponse.data.products || [];
+          setProducts(productsArray);
+        }
+      } catch (productError) {
+        console.error('Failed to refresh products after order:', productError);
       }
+      
       resetSession();
     } catch (error) {
       console.error('Failed to place order:', error);
@@ -232,7 +250,7 @@ export default function App() {
         setError('Your session has expired. Please log in again.');
         handleLogout();
       } else {
-        setError(error.response?.data?.detail || 'Failed to place order. Please try again.');
+        setError(error.response?.data?.detail || error.message || 'Failed to place order. Please try again.');
       }
       setTimeout(() => setError(''), 5000);
     }
@@ -279,7 +297,7 @@ export default function App() {
         <Suspense fallback={<LoadingSpinner />}>
           {!token ? (
             <Login onLogin={handleLogin} />
-          ) : user?.role === 'seller' ? (
+          ) : user?.role === 'Seller' || user?.role === 'Admin' ? (
             <SellerDashboard 
               products={products} 
               token={token} 
@@ -295,7 +313,7 @@ export default function App() {
                 <OrderForm 
                   orderItems={orderItems} 
                   onSubmit={handlePlaceOrder}
-                  onClear={() => setOrderItems([])} 
+                  onClear={setOrderItems} 
                 />
               )}
             </div>

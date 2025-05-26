@@ -1,11 +1,11 @@
 from pydantic import BaseModel, EmailStr, Field, validator
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 import re
 
 class UserBase(BaseModel):
     email: EmailStr = Field(..., description="User's email address")
-    role: str = Field(..., pattern="^(Customer|Seller|Admin)$", description="User's role")
+    role: Literal["Customer", "Seller", "Admin"] = Field(..., description="User's role")
 
     @validator('email')
     def email_must_be_lowercase(cls, v):
@@ -37,7 +37,9 @@ class UserOut(UserBase):
             "example": {
                 "id": "507f1f77bcf86cd799439011",
                 "email": "user@example.com",
-                "role": "user"
+                "role": "Customer",
+                "created_at": "2023-01-01T00:00:00",
+                "last_login": "2023-01-02T00:00:00"
             }
         }
 
@@ -47,13 +49,14 @@ class TokenData(BaseModel):
     role: Optional[str] = None
     exp: Optional[datetime] = None
     iat: Optional[datetime] = None
-    type: Optional[str] = Field(None, pattern="^(access|refresh)$")
+    type: Optional[Literal["access", "refresh"]] = None
+    jti: Optional[str] = None  # JWT ID for token revocation
 
 class Token(BaseModel):
     access_token: str = Field(..., description="JWT access token")
     refresh_token: str = Field(..., description="JWT refresh token")
-    token_type: str = Field("bearer", pattern="^bearer$", description="Token type (always 'bearer')")
-    role: str = Field(..., pattern="^(Customer|Seller|Admin)$", description="User's role")
+    token_type: Literal["bearer"] = Field("bearer", description="Token type (always 'bearer')")
+    role: Literal["Customer", "Seller", "Admin"] = Field(..., description="User's role")
 
 class RefreshToken(BaseModel):
     refresh_token: str = Field(..., description="JWT refresh token to exchange for new access token")

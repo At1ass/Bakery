@@ -1,7 +1,7 @@
 export const msalConfig = {
   auth: {
-    clientId: process.env.REACT_APP_AUTH_CLIENT_ID || "your_client_id",
-    authority: process.env.REACT_APP_AUTH_AUTHORITY || "http://localhost:8001",
+    clientId: window.env?.AUTH_CLIENT_ID || "your_client_id",
+    authority: window.env?.AUTH_AUTHORITY || window.env?.AUTH_API_URL || "http://localhost:8001",
     redirectUri: window.location.origin,
     postLogoutRedirectUri: window.location.origin,
     navigateToLoginRequestUrl: true
@@ -46,11 +46,11 @@ export const loginRequest = {
 
 export const protectedResources = {
   catalogApi: {
-    endpoint: "http://localhost:8002",
+    endpoint: window.env?.CATALOG_API_URL || "http://localhost:8002",
     scopes: ["catalog.read", "catalog.write"]
   },
   orderApi: {
-    endpoint: "http://localhost:8003",
+    endpoint: window.env?.ORDER_API_URL || "http://localhost:8003",
     scopes: ["orders.read", "orders.write"]
   }
 }; 

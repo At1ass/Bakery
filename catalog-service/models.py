@@ -1,12 +1,24 @@
-from pydantic import BaseModel, Field, constr, validator, HttpUrl
-from typing import List, Optional
+from pydantic import BaseModel, Field, constr, validator, HttpUrl, ConfigDict
+from typing import List, Optional, Literal, Union
 from decimal import Decimal
 import re
+from datetime import datetime
 
 class Ingredient(BaseModel):
+    """Model for ingredients in recipes"""
     ingredient: constr(min_length=1, max_length=100) = Field(..., description="Ingredient name")
     quantity: Decimal = Field(..., gt=0, description="Quantity of ingredient")
     unit: constr(min_length=1, max_length=20) = Field(..., description="Unit of measurement (e.g., g, ml, pcs)")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "ingredient": "flour",
+                "quantity": 2.5,
+                "unit": "cups"
+            }
+        }
+    )
 
     @validator('unit')
     def validate_unit(cls, v):
@@ -15,12 +27,19 @@ class Ingredient(BaseModel):
             raise ValueError(f'Invalid unit. Must be one of: {", ".join(sorted(valid_units))}')
         return v.lower()
 
+    @validator('ingredient')
+    def validate_ingredient(cls, v):
+        if not v.strip():
+            raise ValueError("Ingredient name cannot be empty")
+        return v.strip()
+
 class Product(BaseModel):
+    """Model for product objects"""
     id: Optional[str] = Field(None, description="Product ID")
     name: constr(min_length=1, max_length=100) = Field(..., description="Product name")
     description: constr(min_length=1, max_length=500) = Field(..., description="Product description")
     price: Decimal = Field(..., gt=0, lt=10000, description="Product price (must be greater than 0 and less than 10000)")
-    category: constr(min_length=1, max_length=50) = Field(..., description="Product category")
+    category: str = Field(..., description="Product category")
     tags: List[constr(min_length=1, max_length=30)] = Field(
         default_factory=list,
         description="Product tags",
@@ -30,17 +49,41 @@ class Product(BaseModel):
     recipe: List[Ingredient] = Field(default_factory=list, description="List of ingredients in the recipe")
     is_available: bool = Field(default=True, description="Whether the product is available")
     created_by: Optional[str] = Field(None, description="User ID who created the product")
-    created_at: Optional[str] = Field(None, description="Creation timestamp")
-    updated_at: Optional[str] = Field(None, description="Last update timestamp")
+    created_at: Optional[Union[datetime, str]] = Field(None, description="Creation timestamp")
+    updated_at: Optional[Union[datetime, str]] = Field(None, description="Last update timestamp")
+    updated_by: Optional[str] = Field(None, description="User ID who last updated the product")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "Chocolate Cake",
+                "description": "Rich chocolate cake with ganache",
+                "price": 29.99,
+                "category": "Cakes",
+                "tags": ["chocolate", "cake", "dessert"],
+                "image_url": "https://example.com/chocolate-cake.jpg",
+                "recipe": [
+                    {"ingredient": "flour", "quantity": 2.5, "unit": "cups"},
+                    {"ingredient": "cocoa", "quantity": 0.75, "unit": "cups"},
+                    {"ingredient": "sugar", "quantity": 2.0, "unit": "cups"}
+                ],
+                "is_available": True
+            }
+        }
+    )
 
     @validator('name')
     def name_must_be_valid(cls, v):
+        if not v.strip():
+            raise ValueError("Name cannot be empty")
         if not re.match(r'^[\w\s\-\']+$', v):
             raise ValueError('Name can only contain letters, numbers, spaces, hyphens, and apostrophes')
         return v.strip()
 
     @validator('description')
     def description_must_be_valid(cls, v):
+        if not v.strip():
+            raise ValueError("Description cannot be empty")
         if not re.match(r'^[\w\s\-\',\.\!\?]+$', v):
             raise ValueError('Description contains invalid characters')
         return v.strip()
@@ -66,6 +109,8 @@ class Product(BaseModel):
         
         # Validate each tag
         for tag in v:
+            if not tag.strip():
+                raise ValueError("Tag cannot be empty")
             if not re.match(r'^[\w\-]+$', tag):
                 raise ValueError(f'Tag "{tag}" can only contain letters, numbers, and hyphens')
         
@@ -73,26 +118,8 @@ class Product(BaseModel):
 
     @validator('price')
     def validate_price(cls, v):
-        # Round to 2 decimal places
-        return round(v, 2)
-
-    class Config:
-        json_encoders = {
-            Decimal: lambda v: float(v)
-        }
-        schema_extra = {
-            "example": {
-                "name": "Chocolate Cake",
-                "description": "Rich chocolate cake with ganache",
-                "price": "29.99",
-                "category": "Cakes",
-                "tags": ["chocolate", "cake", "dessert"],
-                "image_url": "https://example.com/chocolate-cake.jpg",
-                "recipe": [
-                    {"ingredient": "flour", "quantity": "2.5", "unit": "cups"},
-                    {"ingredient": "cocoa", "quantity": "0.75", "unit": "cups"},
-                    {"ingredient": "sugar", "quantity": "2.0", "unit": "cups"}
-                ],
-                "is_available": True
-            }
-        }
+        # Round to 2 decimal places and convert to float
+        try:
+            return float(round(v, 2))
+        except Exception:
+            raise ValueError("Price must be a valid decimal number")

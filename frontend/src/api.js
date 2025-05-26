@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-const AUTH_URL = 'http://localhost:8001';
-const CATALOG_URL = 'http://localhost:8002';
-const ORDER_URL = 'http://localhost:8003';
+// Use window.env which is populated at runtime with actual environment variables
+const AUTH_URL = window.env?.AUTH_API_URL || 'http://localhost:8001';
+const CATALOG_URL = window.env?.CATALOG_API_URL || 'http://localhost:8002';
+const ORDER_URL = window.env?.ORDER_API_URL || 'http://localhost:8003';
 
 // Create axios instances with default config
 const authApi = axios.create({
@@ -37,6 +38,7 @@ const handleUnauthorized = (error) => {
     if (error.response && error.response.status === 401) {
         // Clear token and redirect to login
         localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         window.location.reload();
     }
     return Promise.reject(error);
@@ -68,10 +70,15 @@ export async function login(email, password) {
         throw new Error('Invalid response format: missing access token');
     }
     
+    // Store refresh token in localStorage for later use
+    if (response.data.refresh_token) {
+        localStorage.setItem('refreshToken', response.data.refresh_token);
+    }
+    
     return response.data;
 }
 
-export async function register(email, password, role = 'user') {
+export async function register(email, password, role = 'Customer') {
     const response = await authApi.post('/register', 
         { email, password, role },
         {
@@ -93,6 +100,92 @@ export async function register(email, password, role = 'user') {
     }
     
     return response.data;
+}
+
+export async function refreshToken(refreshToken) {
+    try {
+        const response = await authApi.post('/refresh', 
+            { refresh_token: refreshToken },
+            {
+                validateStatus: function (status) {
+                    return status >= 200 && status < 500;
+                }
+            }
+        );
+        
+        if (response.status !== 200) {
+            throw { 
+                response: response,
+                message: response.data?.detail || 'Token refresh failed'
+            };
+        }
+        
+        if (!response.data || !response.data.access_token) {
+            throw new Error('Invalid response format: missing access token');
+        }
+        
+        // Update the refresh token if a new one was provided
+        if (response.data.refresh_token) {
+            localStorage.setItem('refreshToken', response.data.refresh_token);
+        }
+        
+        return response.data.access_token;
+    } catch (error) {
+        console.error('Token refresh failed:', error);
+        // Clear tokens on refresh failure
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        throw error;
+    }
+}
+
+export async function getCurrentUser(token) {
+    try {
+        const response = await authApi.get('/me', {
+            headers: { 
+                Authorization: `Bearer ${token}`,
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.data) {
+            throw new Error('No user data received from server');
+        }
+        
+        return response;
+    } catch (error) {
+        console.error('Error fetching user profile:', {
+            message: error.message,
+            response: error.response?.data,
+            status: error.response?.status
+        });
+        
+        // If token expired, try to refresh it
+        if (error.response?.status === 401) {
+            const refreshTokenValue = localStorage.getItem('refreshToken');
+            if (refreshTokenValue) {
+                try {
+                    const newToken = await refreshToken(refreshTokenValue);
+                    localStorage.setItem('token', newToken);
+                    
+                    // Retry with new token
+                    const retryResponse = await authApi.get('/me', {
+                        headers: { 
+                            Authorization: `Bearer ${newToken}`,
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    return retryResponse;
+                } catch (refreshError) {
+                    console.error('Token refresh failed:', refreshError);
+                    throw refreshError;
+                }
+            }
+        }
+        
+        throw error;
+    }
 }
 
 export async function fetchProducts(token) {
@@ -152,10 +245,14 @@ export async function createProduct(token, product) {
     }
 
     try {
-        const response = await catalogApi.post('/products', product, {
+        // Ensure product data is properly serialized for JSON
+        const serializedProduct = JSON.parse(JSON.stringify(product));
+        
+        const response = await catalogApi.post('/products', serializedProduct, {
             headers: { 
                 Authorization: `Bearer ${token}`,
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
             }
         });
         
@@ -180,10 +277,14 @@ export async function updateProduct(token, productId, product) {
     }
 
     try {
-        const response = await catalogApi.put(`/products/${productId}`, product, {
+        // Ensure product data is properly serialized for JSON
+        const serializedProduct = JSON.parse(JSON.stringify(product));
+        
+        const response = await catalogApi.put(`/products/${productId}`, serializedProduct, {
             headers: { 
                 Authorization: `Bearer ${token}`,
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
             }
         });
         
@@ -247,51 +348,4 @@ export async function fetchOrders(token) {
         console.error('Error fetching orders:', error);
         throw error;
     }
-}
-
-export async function getCurrentUser(token) {
-    if (!token) {
-        throw new Error('No token provided');
-    }
-
-    try {
-        const response = await authApi.get('/me', {
-            headers: { 
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
-        });
-
-        if (!response.data || !response.data.email) {
-            throw new Error('Invalid response format: missing user data');
-        }
-
-        return response;
-    } catch (error) {
-        console.error('Error getting current user:', error);
-        throw error;
-    }
-}
-
-export async function refreshToken(token) {
-    const response = await authApi.post('/refresh', null, { 
-        headers: { Authorization: `Bearer ${token}` },
-        validateStatus: function (status) {
-            return status >= 200 && status < 500;
-        }
-    });
-
-    if (response.status !== 200) {
-        throw {
-            response: response,
-            message: response.data?.detail || 'Token refresh failed'
-        };
-    }
-
-    if (!response.data || !response.data.access_token) {
-        throw new Error('Invalid response format: missing access token');
-    }
-
-    return response.data.access_token;
 }
