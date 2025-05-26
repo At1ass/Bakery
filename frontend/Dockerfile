@@ -1,37 +1,32 @@
 # Build stage
-FROM node:18-alpine as build
+FROM node:18-alpine AS builder
+
+# Set working directory
 WORKDIR /app
-COPY package.json ./
+
+# Add package files
+COPY package*.json ./
+
+# Install dependencies and generate package-lock.json
 RUN npm install
+
+# Add rest of the client code
 COPY . .
+
+# Build the app
 RUN npm run build
 
-# Development configuration
-FROM node:18-alpine
-WORKDIR /app
+# Production stage
+FROM nginx:stable-alpine
 
-# Install dependencies
-COPY package.json package-lock.json ./
-RUN npm install
+# Copy custom nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy source code
-COPY . .
+# Copy static files from builder
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Expose port
-EXPOSE 3000
+EXPOSE 3001
 
-# Set development mode
-ENV NODE_ENV=development
-ENV VITE_HOST=0.0.0.0
-ENV VITE_PORT=3000
-
-# Start Vite dev server
-CMD ["npm", "run", "dev"]
-
-# Production stage
-FROM node:18-alpine
-WORKDIR /app
-COPY --from=build /app/dist ./dist
-RUN npm install -g serve
-EXPOSE 3000
-CMD ["serve", "-s", "dist", "-l", "3000"]
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

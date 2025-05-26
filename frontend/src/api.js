@@ -107,17 +107,32 @@ export async function fetchProducts(token) {
         }
 
         const response = await catalogApi.get('/products', config);
+        console.log('Raw API response:', response);
         
         if (!response.data) {
-            throw new Error('No data received from the server');
+            console.warn('No data received from server');
+            return { data: [] };
         }
         
-        // Ensure we return an array of products
-        const products = Array.isArray(response.data) ? response.data :
-                        response.data.products ? response.data.products :
-                        response.data.data ? response.data.data : [];
+        // Handle different response formats
+        let products;
+        if (Array.isArray(response.data)) {
+            products = response.data;
+        } else if (typeof response.data === 'object') {
+            if (response.data.data && Array.isArray(response.data.data)) {
+                products = response.data.data;
+            } else if (response.data.products && Array.isArray(response.data.products)) {
+                products = response.data.products;
+            } else {
+                console.warn('Unexpected data format:', response.data);
+                products = [];
+            }
+        } else {
+            console.warn('Invalid data type:', typeof response.data);
+            products = [];
+        }
                         
-        console.log('Processed products:', products);
+        console.log('Processed products array:', products);
         return { data: products };
     } catch (error) {
         console.error('Error fetching products:', {

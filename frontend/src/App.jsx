@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import { login, fetchProducts, createOrder, getCurrentUser } from './api.js';
 import Login from './components/Login.jsx';
 import ProductList from './components/ProductList.jsx';
@@ -8,8 +9,22 @@ import './App.css';
 
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
 
+function ErrorFallback({ error, resetErrorBoundary }) {
+  return (
+    <div role="alert" className="error-boundary">
+      <p>Something went wrong:</p>
+      <pre>{error.message}</pre>
+      <button onClick={resetErrorBoundary}>Try again</button>
+    </div>
+  );
+}
+
+function LoadingSpinner() {
+  return <div className="loading-spinner">Loading...</div>;
+}
+
 export default function App() {
-  const [token, setToken] = useState(localStorage.getItem('token') || '');
+  const [token, setToken] = useState(() => localStorage.getItem('token') || '');
   const [user, setUser] = useState(null);
   const [products, setProducts] = useState([]);
   const [orderItems, setOrderItems] = useState([]);
@@ -37,13 +52,9 @@ export default function App() {
   }, [resetSession, token, user]);
 
   useEffect(() => {
-    // Add event listeners for user activity
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
-    events.forEach(event => {
-      window.addEventListener(event, handleUserActivity);
-    });
-
-    return () => {
+    
+    const cleanup = () => {
       events.forEach(event => {
         window.removeEventListener(event, handleUserActivity);
       });
@@ -51,9 +62,14 @@ export default function App() {
         clearTimeout(sessionTimeout);
       }
     };
+
+    events.forEach(event => {
+      window.addEventListener(event, handleUserActivity);
+    });
+
+    return cleanup;
   }, [handleUserActivity, sessionTimeout]);
 
-  // Single useEffect for user initialization
   useEffect(() => {
     let isMounted = true;
     let retryCount = 0;
@@ -61,7 +77,6 @@ export default function App() {
     const RETRY_DELAY = 2000;
 
     const initializeUser = async () => {
-      // Skip if already initialized or no token
       if (isInitialized || !token) {
         setLoading(false);
         return;
@@ -84,8 +99,6 @@ export default function App() {
         if (error.response?.status === 401 || retryCount >= MAX_RETRIES) {
           handleLogout();
           setError('Session expired or invalid. Please log in again.');
-          setLoading(false);
-          setIsInitialized(true);
         } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
           retryCount++;
           setError(`Unable to connect to the server. Retry ${retryCount}/${MAX_RETRIES}...`);
@@ -93,9 +106,9 @@ export default function App() {
         } else {
           handleLogout();
           setError('Failed to load user data. Please try logging in again.');
-          setLoading(false);
-          setIsInitialized(true);
         }
+        setLoading(false);
+        setIsInitialized(true);
       }
     };
 
@@ -106,34 +119,31 @@ export default function App() {
     };
   }, [token, resetSession]);
 
-  // Products fetch effect
   useEffect(() => {
     let isMounted = true;
 
     const loadProducts = async () => {
-      if (!token || !user) return;
+      if (!token || !user) {
+        setProducts([]);
+        return;
+      }
 
       try {
-        console.log('Fetching products with token:', token);
         const response = await fetchProducts(token);
-        console.log('Raw products response:', response);
-        
-        if (isMounted) {
-          if (Array.isArray(response.data)) {
-            console.log('Setting products state with:', response.data);
-            setProducts(response.data);
-          } else {
-            console.error('Invalid products data format:', response.data);
-            setError('Failed to load products: Invalid data format');
-          }
-        }
+        if (!isMounted) return;
+
+        const productsArray = Array.isArray(response?.data) ? response.data : [];
+        setProducts(productsArray);
+        setError('');
       } catch (error) {
-        console.error('Failed to fetch products:', error);
-        if (isMounted && error.response?.status === 401) {
+        if (!isMounted) return;
+
+        if (error.response?.status === 401) {
           handleLogout();
           setError('Session expired. Please log in again.');
-        } else if (isMounted) {
+        } else {
           setError('Failed to load products. Please refresh the page.');
+          setProducts([]);
         }
       }
     };
@@ -165,13 +175,13 @@ export default function App() {
     }
   }, [sessionTimeout]);
 
-  const handleAddToOrder = (product) => {
-    setOrderItems([...orderItems, product]);
+  const handleAddToOrder = useCallback((product) => {
+    setOrderItems(prevItems => [...prevItems, product]);
     setSuccessMessage('Product added to order');
     setTimeout(() => setSuccessMessage(''), 3000);
-  };
+  }, []);
 
-  const handlePlaceOrder = async (orderData) => {
+  const handlePlaceOrder = useCallback(async (orderData) => {
     setError('');
     setSuccessMessage('');
     
@@ -187,9 +197,10 @@ export default function App() {
       setSuccessMessage('Order placed successfully!');
       setTimeout(() => setSuccessMessage(''), 5000);
       
-      // Refresh products to update availability
       const productsResponse = await fetchProducts(token);
-      setProducts(productsResponse.data);
+      if (Array.isArray(productsResponse?.data)) {
+        setProducts(productsResponse.data);
+      }
       resetSession();
     } catch (error) {
       console.error('Failed to place order:', error);
@@ -201,54 +212,72 @@ export default function App() {
       }
       setTimeout(() => setError(''), 5000);
     }
-  };
+  }, [token, orderItems, resetSession, handleLogout]);
 
   const handleProductsChange = useCallback((newProducts) => {
     setProducts(newProducts);
   }, []);
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return <LoadingSpinner />;
   }
 
   return (
-    <div className="app" onClick={handleUserActivity}>
-      <header>
-        <h1>Confectionery Store</h1>
-        {user && (
-          <div className="user-info">
-            Welcome, {user.email}
-            <button onClick={handleLogout} className="logout-btn">Logout</button>
+    <ErrorBoundary
+      FallbackComponent={ErrorFallback}
+      onReset={() => {
+        setError('');
+        setIsInitialized(false);
+      }}
+    >
+      <div className="app" onClick={handleUserActivity}>
+        <header className="app-header">
+          <h1>Confectionery Store</h1>
+          {user && (
+            <div className="user-info">
+              Welcome, {user.email}
+              <button onClick={handleLogout} className="logout-btn">Logout</button>
+            </div>
+          )}
+        </header>
+
+        {error && (
+          <div className="error-message" role="alert" aria-live="polite">
+            {error}
           </div>
         )}
-      </header>
+        {successMessage && (
+          <div className="success-message" role="status" aria-live="polite">
+            {successMessage}
+          </div>
+        )}
 
-      {error && <div className="error-message" role="alert">{error}</div>}
-      {successMessage && <div className="success-message" role="status">{successMessage}</div>}
-
-      {!token ? (
-        <Login onLogin={handleLogin} />
-      ) : user?.role === 'seller' ? (
-        <SellerDashboard 
-          products={products} 
-          token={token} 
-          onProductsChange={handleProductsChange}
-        />
-      ) : (
-        <div className="customer-view">
-          <ProductList 
-            products={products} 
-            onAddToOrder={handleAddToOrder} 
-          />
-          {orderItems.length > 0 && (
-            <OrderForm 
-              orderItems={orderItems} 
-              onSubmit={handlePlaceOrder}
-              onClear={() => setOrderItems([])} 
+        <Suspense fallback={<LoadingSpinner />}>
+          {!token ? (
+            <Login onLogin={handleLogin} />
+          ) : user?.role === 'seller' ? (
+            <SellerDashboard 
+              products={products} 
+              token={token} 
+              onProductsChange={handleProductsChange}
             />
+          ) : (
+            <div className="customer-view">
+              <ProductList 
+                products={products} 
+                onAddToOrder={handleAddToOrder} 
+              />
+              {orderItems.length > 0 && (
+                <OrderForm 
+                  orderItems={orderItems} 
+                  onSubmit={handlePlaceOrder}
+                  onClear={() => setOrderItems([])} 
+                />
+              )}
+            </div>
           )}
-        </div>
-      )}
-    </div>
+        </Suspense>
+      </div>
+    </ErrorBoundary>
   );
 }

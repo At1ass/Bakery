@@ -15,15 +15,21 @@ export default function SellerDashboard({ products = [], token, onProductsChange
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  // Ensure products is always an array
+  const displayProducts = Array.isArray(products) ? products : [];
+  console.log('SellerDashboard displayProducts:', displayProducts);
+
   useEffect(() => {
     if (!token) return;
 
     fetchOrders(token)
       .then(response => {
-        if (response.data) {
+        console.log('Orders API response:', response);
+        if (response?.data) {
           const ordersData = Array.isArray(response.data) ? response.data :
                             response.data.orders ? response.data.orders :
                             response.data.data ? response.data.data : [];
+          console.log('Processed orders data:', ordersData);
           setOrders(ordersData);
         }
       })
@@ -50,10 +56,14 @@ export default function SellerDashboard({ products = [], token, onProductsChange
         is_available: true
       };
 
+      console.log('Creating product with data:', productData);
       const response = await createProduct(token, productData);
-      if (response.data) {
+      console.log('Create product response:', response);
+
+      if (response?.data) {
         const newProductData = response.data;
-        onProductsChange([...products, newProductData]);
+        console.log('New product created:', newProductData);
+        onProductsChange([...displayProducts, newProductData]);
         setNewProduct({ 
           name: '', 
           description: '', 
@@ -73,14 +83,23 @@ export default function SellerDashboard({ products = [], token, onProductsChange
   };
 
   const handleDeleteProduct = async (productId) => {
+    if (!productId) {
+      console.error('No product ID provided for deletion');
+      setError('Cannot delete product: Invalid ID');
+      return;
+    }
+
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     
     setError('');
     setSuccessMessage('');
     
     try {
+      console.log('Deleting product with ID:', productId);
       await deleteProduct(token, productId);
-      onProductsChange(products.filter(p => p._id !== productId));
+      const updatedProducts = displayProducts.filter(p => (p._id || p.id) !== productId);
+      console.log('Updated products after deletion:', updatedProducts);
+      onProductsChange(updatedProducts);
       setSuccessMessage('Product deleted successfully!');
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (error) {
@@ -89,9 +108,6 @@ export default function SellerDashboard({ products = [], token, onProductsChange
       setTimeout(() => setError(''), 5000);
     }
   };
-
-  // Ensure products is always an array
-  const displayProducts = Array.isArray(products) ? products : [];
 
   return (
     <div className="seller-dashboard">
@@ -174,22 +190,25 @@ export default function SellerDashboard({ products = [], token, onProductsChange
               </tr>
             </thead>
             <tbody>
-              {displayProducts.map(product => (
-                <tr key={product._id || product.id}>
-                  <td>{product.name}</td>
-                  <td>{product.description}</td>
-                  <td>{product.category || 'Other'}</td>
-                  <td>${parseFloat(product.price).toFixed(2)}</td>
-                  <td>
-                    <button 
-                      onClick={() => handleDeleteProduct(product._id || product.id)}
-                      className="delete-btn"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {displayProducts.map(product => {
+                const id = product._id || product.id;
+                return (
+                  <tr key={id}>
+                    <td>{product.name}</td>
+                    <td>{product.description}</td>
+                    <td>{product.category || 'Other'}</td>
+                    <td>${parseFloat(product.price).toFixed(2)}</td>
+                    <td>
+                      <button 
+                        onClick={() => handleDeleteProduct(id)}
+                        className="delete-btn"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -208,14 +227,17 @@ export default function SellerDashboard({ products = [], token, onProductsChange
               </tr>
             </thead>
             <tbody>
-              {Array.isArray(orders) && orders.map(order => (
-                <tr key={order._id || order.id}>
-                  <td>{order._id || order.id}</td>
-                  <td>{order.user_email}</td>
-                  <td>${parseFloat(order.total).toFixed(2)}</td>
-                  <td>{order.status}</td>
-                </tr>
-              ))}
+              {Array.isArray(orders) && orders.map(order => {
+                const id = order._id || order.id;
+                return (
+                  <tr key={id}>
+                    <td>{id}</td>
+                    <td>{order.user_email}</td>
+                    <td>${parseFloat(order.total).toFixed(2)}</td>
+                    <td>{order.status}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
