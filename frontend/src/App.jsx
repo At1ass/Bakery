@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { login, fetchProducts, createOrder, getCurrentUser } from './api.js';
+import { login, fetchProducts, createOrder, getCurrentUser, refreshToken } from './api.js';
 import Login from './components/Login.jsx';
 import ProductList from './components/ProductList.jsx';
 import OrderForm from './components/OrderForm.jsx';
 import SellerDashboard from './components/SellerDashboard.jsx';
 import './App.css';
 
-const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
+// Read from environment variables with fallback
+const SESSION_TIMEOUT = parseInt(process.env.REACT_APP_SESSION_TIMEOUT) || 30 * 60 * 1000; // 30 minutes
+const TOKEN_REFRESH_INTERVAL = parseInt(process.env.REACT_APP_TOKEN_REFRESH_INTERVAL) || 25 * 60 * 1000; // 25 minutes
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   return (
@@ -44,6 +46,28 @@ export default function App() {
     }, SESSION_TIMEOUT);
     setSessionTimeout(timeout);
   }, [sessionTimeout]);
+
+  // Add token refresh mechanism
+  useEffect(() => {
+    if (!token || !user) return;
+
+    const refreshInterval = setInterval(async () => {
+      try {
+        const newToken = await refreshToken(token);
+        setToken(newToken);
+        localStorage.setItem('token', newToken);
+        resetSession();
+      } catch (error) {
+        console.error('Failed to refresh token:', error);
+        if (error.response?.status === 401) {
+          handleLogout();
+          setError('Session expired. Please log in again.');
+        }
+      }
+    }, TOKEN_REFRESH_INTERVAL);
+
+    return () => clearInterval(refreshInterval);
+  }, [token, user, resetSession]);
 
   const handleUserActivity = useCallback(() => {
     if (token && user) {

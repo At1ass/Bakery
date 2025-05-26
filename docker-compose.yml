@@ -5,25 +5,122 @@ services:
     image: mongo:6.0
     container_name: confectionery-mongo
     ports: ['27017:27017']
-    volumes: ['mongo-data:/data/db']
+    volumes: 
+      - mongo-data:/data/db
+      - ./mongo-init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - app-network
+
   auth:
     build: ./auth-service
     container_name: confectionery-auth
     ports: ['8001:8000']
-    environment: { MONGO: mongodb://mongo:27017, SECRET: your_jwt_secret }
-    depends_on: ['mongo']
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET}
+      NODE_ENV: production
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - app-network
+
   catalog:
     build: ./catalog-service
     container_name: confectionery-catalog
     ports: ['8002:8000']
-    environment: { MONGO: mongodb://mongo:27017 }
-    depends_on: ['mongo']
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      NODE_ENV: production
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - app-network
+
   order:
     build: ./order-service
     container_name: confectionery-order
     ports: ['8003:8000']
-    environment: { MONGO: mongodb://mongo:27017, AUTH_URL: http://auth:8000, CATALOG_URL: http://catalog:8000 }
-    depends_on: ['auth','catalog','mongo']
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      AUTH_URL: http://auth:8000
+      CATALOG_URL: http://catalog:8000
+      NODE_ENV: production
+    depends_on:
+      auth:
+        condition: service_healthy
+      catalog:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - app-network
+
   frontend:
     build: 
       context: ./frontend
@@ -31,11 +128,36 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - NODE_ENV=production
+      NODE_ENV: production
+      AUTH_API_URL: http://auth:8000
+      CATALOG_API_URL: http://catalog:8000
+      ORDER_API_URL: http://order:8000
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - app-network
-    depends_on: ['auth','catalog','order']
+    depends_on:
+      auth:
+        condition: service_healthy
+      catalog:
+        condition: service_healthy
+      order:
+        condition: service_healthy
+
 volumes:
   mongo-data:
 

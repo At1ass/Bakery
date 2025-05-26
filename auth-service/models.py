@@ -1,32 +1,36 @@
 from pydantic import BaseModel, EmailStr, Field, validator
-from typing import Literal
+from typing import Optional
+from datetime import datetime
 import re
 
-class UserIn(BaseModel):
+class UserBase(BaseModel):
     email: EmailStr = Field(..., description="User's email address")
+    role: str = Field(..., pattern="^(customer|seller|admin)$", description="User's role")
+
+    @validator('email')
+    def email_must_be_lowercase(cls, v):
+        return v.lower()
+
+class UserIn(UserBase):
     password: str = Field(
         ...,
-        min_length=8,
-        description="User's password (min 8 characters, must include uppercase, lowercase, number, and special character)"
-    )
-    role: Literal["user", "seller"] = Field(
-        default="user",
-        description="User's role in the system"
+        min_length=12,
+        description="User's password (min 12 chars, must include uppercase, lowercase, number, and special char)"
     )
 
     @validator('password')
-    def validate_password(cls, v):
-        if not re.match(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$', v):
+    def password_strength(cls, v):
+        if not re.match(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$', v):
             raise ValueError(
                 'Password must contain at least one uppercase letter, '
                 'one lowercase letter, one number and one special character'
             )
         return v
 
-class UserOut(BaseModel):
+class UserOut(UserBase):
     id: str = Field(..., description="User's unique identifier")
-    email: EmailStr = Field(..., description="User's email address")
-    role: str = Field(..., description="User's role in the system")
+    created_at: Optional[datetime] = Field(None, description="Account creation timestamp")
+    last_login: Optional[datetime] = Field(None, description="Last successful login timestamp")
 
     class Config:
         json_schema_extra = {
@@ -37,19 +41,19 @@ class UserOut(BaseModel):
             }
         }
 
+class TokenData(BaseModel):
+    uid: Optional[str] = None
+    email: Optional[str] = None
+    role: Optional[str] = None
+    exp: Optional[datetime] = None
+    iat: Optional[datetime] = None
+    type: Optional[str] = Field(None, pattern="^(access|refresh)$")
+
 class Token(BaseModel):
     access_token: str = Field(..., description="JWT access token")
-    token_type: str = Field(..., description="Token type (bearer)")
-    role: str = Field(..., description="User's role")
+    refresh_token: str = Field(..., description="JWT refresh token")
+    token_type: str = Field("bearer", pattern="^bearer$", description="Token type (always 'bearer')")
+    role: str = Field(..., pattern="^(customer|seller|admin)$", description="User's role")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                "token_type": "bearer",
-                "role": "user"
-            }
-        }
-
-class TokenData(BaseModel):
-    uid: str = Field(..., description="User ID from token")
+class RefreshToken(BaseModel):
+    refresh_token: str = Field(..., description="JWT refresh token to exchange for new access token")
