@@ -29,12 +29,30 @@ export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem('token') || '');
   const [user, setUser] = useState(null);
   const [products, setProducts] = useState([]);
-  const [orderItems, setOrderItems] = useState([]);
+  // Initialize orderItems from localStorage if available
+  const [orderItems, setOrderItems] = useState(() => {
+    try {
+      const savedOrderItems = localStorage.getItem('orderItems');
+      return savedOrderItems ? JSON.parse(savedOrderItems) : [];
+    } catch (error) {
+      console.error('Failed to parse orderItems from localStorage:', error);
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [sessionTimeout, setSessionTimeout] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // Save orderItems to localStorage whenever it changes
+  useEffect(() => {
+    if (orderItems.length > 0) {
+      localStorage.setItem('orderItems', JSON.stringify(orderItems));
+    } else {
+      localStorage.removeItem('orderItems');
+    }
+  }, [orderItems]);
 
   const resetSession = useCallback(() => {
     if (sessionTimeout) {
@@ -194,6 +212,7 @@ export default function App() {
     setToken('');
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('orderItems');
     setUser(null);
     setOrderItems([]);
     setError('');
@@ -226,6 +245,7 @@ export default function App() {
       console.log('Order response:', response);
       
       setOrderItems([]);
+      localStorage.removeItem('orderItems');
       setSuccessMessage('Order placed successfully!');
       setTimeout(() => setSuccessMessage(''), 5000);
       

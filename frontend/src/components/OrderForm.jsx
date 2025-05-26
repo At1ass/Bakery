@@ -1,9 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './OrderForm.css';
 
 export default function OrderForm({ orderItems, onSubmit, onClear }) {
-  const [address, setAddress] = useState('');
-  const [notes, setNotes] = useState('');
+  const [address, setAddress] = useState(() => {
+    return localStorage.getItem('orderAddress') || '';
+  });
+  const [notes, setNotes] = useState(() => {
+    return localStorage.getItem('orderNotes') || '';
+  });
+
+  // Save address and notes to localStorage when they change
+  useEffect(() => {
+    if (address) {
+      localStorage.setItem('orderAddress', address);
+    } else {
+      localStorage.removeItem('orderAddress');
+    }
+  }, [address]);
+
+  useEffect(() => {
+    if (notes) {
+      localStorage.setItem('orderNotes', notes);
+    } else {
+      localStorage.removeItem('orderNotes');
+    }
+  }, [notes]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -19,8 +40,12 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
     };
 
     onSubmit(orderData);
+    
+    // Clear the form and localStorage after successful submission
     setAddress('');
     setNotes('');
+    localStorage.removeItem('orderAddress');
+    localStorage.removeItem('orderNotes');
   };
 
   const calculateTotal = () => {
@@ -83,7 +108,13 @@ export default function OrderForm({ orderItems, onSubmit, onClear }) {
         <div className="form-actions">
           <button 
             type="button" 
-            onClick={() => onClear([])}
+            onClick={() => {
+              onClear([]);
+              setAddress('');
+              setNotes('');
+              localStorage.removeItem('orderAddress');
+              localStorage.removeItem('orderNotes');
+            }}
             className="clear-order"
           >
             Clear Order
